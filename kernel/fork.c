@@ -93,6 +93,7 @@
 #include <linux/kcov.h>
 #include <linux/livepatch.h>
 #include <linux/thread_info.h>
+#include <ipipe/thread_info.h>
 #include <linux/stackleak.h>
 
 #include <asm/pgtable.h>
@@ -904,6 +905,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 #endif
 
 	setup_thread_stack(tsk, orig);
+#ifdef CONFIG_IPIPE
+	__ipipe_init_threadflags(task_thread_info(tsk));
+	__ipipe_init_threadinfo(&task_thread_info(tsk)->ipipe_data);
+#endif
 	clear_user_return_notifier(tsk);
 	clear_tsk_need_resched(tsk);
 	set_task_stack_end_magic(tsk);

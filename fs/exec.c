@@ -50,6 +50,7 @@
 #include <linux/module.h>
 #include <linux/namei.h>
 #include <linux/mount.h>
+#include <linux/ipipe.h>
 #include <linux/security.h>
 #include <linux/syscalls.h>
 #include <linux/tsacct_kern.h>
@@ -1016,6 +1017,7 @@ static int exec_mmap(struct mm_struct *mm)
 {
 	struct task_struct *tsk;
 	struct mm_struct *old_mm, *active_mm;
+	unsigned long flags;
 	int ret;
 
 	/* Notify parent that we're no longer interested in the old VM */
@@ -1047,8 +1049,10 @@ static int exec_mmap(struct mm_struct *mm)
 	active_mm = tsk->active_mm;
 	membarrier_exec_mmap(mm);
 	tsk->mm = mm;
+	ipipe_mm_switch_protect(flags);
 	tsk->active_mm = mm;
 	activate_mm(active_mm, mm);
+	ipipe_mm_switch_unprotect(flags);
 	tsk->mm->vmacache_seqnum = 0;
 	vmacache_flush(tsk);
 	task_unlock(tsk);
