@@ -3119,8 +3119,9 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 	/* Don't pollute graph traces with trace_vprintk internals */
 	pause_graph_tracing();
 
+	flags = hard_local_irq_save();
+
 	pc = preempt_count();
-	preempt_disable_notrace();
 
 	tbuffer = get_trace_buf();
 	if (!tbuffer) {
@@ -3133,7 +3134,6 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 	if (len > TRACE_BUF_SIZE/sizeof(int) || len < 0)
 		goto out;
 
-	local_save_flags(flags);
 	size = sizeof(*entry) + sizeof(u32) * len;
 	buffer = tr->trace_buffer.buffer;
 	event = __trace_buffer_lock_reserve(buffer, TRACE_BPRINT, size,
@@ -3154,7 +3154,7 @@ out:
 	put_trace_buf();
 
 out_nobuffer:
-	preempt_enable_notrace();
+	hard_local_irq_restore(flags);
 	unpause_graph_tracing();
 
 	return len;
