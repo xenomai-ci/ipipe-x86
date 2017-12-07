@@ -56,6 +56,7 @@
 #include <linux/export.h>
 #include <linux/delayacct.h>
 #include <linux/init.h>
+#include <linux/ipipe.h>
 #include <linux/pfn_t.h>
 #include <linux/writeback.h>
 #include <linux/memcontrol.h>
@@ -4736,6 +4737,41 @@ long copy_huge_page_from_user(struct page *dst_page,
 	return ret_val;
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE || CONFIG_HUGETLBFS */
+
+#ifdef CONFIG_IPIPE
+
+int __ipipe_disable_ondemand_mappings(struct task_struct *tsk)
+{
+	struct vm_area_struct *vma;
+	struct mm_struct *mm;
+	int result = 0;
+
+	mm = get_task_mm(tsk);
+	if (!mm)
+		return -EPERM;
+
+	down_write(&mm->mmap_sem);
+	if (test_bit(MMF_VM_PINNED, &mm->flags))
+		goto done_mm;
+
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		if (is_cow_mapping(vma->vm_flags) &&
+		    (vma->vm_flags & VM_WRITE)) {
+			result = __ipipe_pin_vma(mm, vma);
+			if (result < 0)
+				goto done_mm;
+		}
+	}
+	set_bit(MMF_VM_PINNED, &mm->flags);
+
+  done_mm:
+	up_write(&mm->mmap_sem);
+	mmput(mm);
+	return result;
+}
+EXPORT_SYMBOL_GPL(__ipipe_disable_ondemand_mappings);
+
+#endif /* CONFIG_IPIPE */
 
 #if USE_SPLIT_PTE_PTLOCKS && ALLOC_SPLIT_PTLOCKS
 
