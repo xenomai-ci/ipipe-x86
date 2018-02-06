@@ -242,11 +242,12 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 			     *next = &next_p->thread;
 	struct fpu *prev_fpu = &prev->fpu;
 	struct fpu *next_fpu = &next->fpu;
-	int cpu = smp_processor_id();
+	int cpu = raw_smp_processor_id();
+	int slope = ipipe_get_domain_slope_hook(prev_p, next_p);
 
 	/* never put a printk in __switch_to... printk() calls wake_up*() indirectly */
 
-	switch_fpu_prepare(prev_fpu, cpu);
+	switch_fpu_prepare(prev_fpu, cpu, slot);
 
 	/*
 	 * Save away %gs. No need to save %fs, as it was saved on the
@@ -302,7 +303,7 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	if (prev->gs | next->gs)
 		lazy_load_gs(next->gs);
 
-	switch_fpu_finish(next_fpu, cpu);
+	switch_fpu_finish(next_fpu, cpu, slope);
 
 	this_cpu_write(current_task, next_p);
 
