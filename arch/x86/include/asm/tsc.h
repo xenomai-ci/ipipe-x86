@@ -15,6 +15,9 @@
  */
 typedef unsigned long long cycles_t;
 
+extern struct clocksource clocksource_tsc;
+#define __ipipe_hostrt_clock	clocksource_tsc
+
 extern unsigned int cpu_khz;
 extern unsigned int tsc_khz;
 
