@@ -221,7 +221,6 @@ static int zynq_gpio_get_value(struct gpio_chip *chip, unsigned int pin)
 	u32 data;
 	unsigned int bank_num, bank_pin_num;
 	struct zynq_gpio *gpio = gpiochip_get_data(chip);
-	unsigned long flags;
 
 	zynq_gpio_get_bank_pin(pin, &bank_num, &bank_pin_num, gpio);
 
@@ -302,6 +301,7 @@ static int zynq_gpio_dir_in(struct gpio_chip *chip, unsigned int pin)
 	u32 reg;
 	unsigned int bank_num, bank_pin_num;
 	struct zynq_gpio *gpio = gpiochip_get_data(chip);
+	unsigned long flags;
 
 	zynq_gpio_get_bank_pin(pin, &bank_num, &bank_pin_num, gpio);
 
