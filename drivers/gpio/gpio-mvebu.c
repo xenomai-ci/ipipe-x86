@@ -50,6 +50,7 @@
 #include <linux/pwm.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
+#include <linux/ipipe.h>
 
 #include "gpiolib.h"
 
