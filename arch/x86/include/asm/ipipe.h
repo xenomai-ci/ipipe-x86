@@ -50,6 +50,11 @@ void __ipipe_enable_pipeline(void);
 
 #define __ipipe_root_tick_p(regs)	((regs)->flags & X86_EFLAGS_IF)
 
+static inline void ipipe_notify_root_preemption(void)
+{
+	__ipipe_notify_vm_preemption();
+}
+
 #endif /* CONFIG_IPIPE */
 
 #if defined(CONFIG_SMP) && defined(CONFIG_IPIPE)
