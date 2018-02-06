@@ -683,9 +683,9 @@ unsigned long native_calibrate_cpu(void)
 	if (fast_calibrate)
 		return fast_calibrate;
 
-	local_irq_save(flags);
+	flags = hard_local_irq_save();
 	fast_calibrate = quick_pit_calibrate();
-	local_irq_restore(flags);
+	hard_local_irq_restore(flags);
 	if (fast_calibrate)
 		return fast_calibrate;
 
@@ -728,11 +728,11 @@ unsigned long native_calibrate_cpu(void)
 		 * calibration, which will take at least 50ms, and
 		 * read the end value.
 		 */
-		local_irq_save(flags);
+		flags = hard_local_irq_save();
 		tsc1 = tsc_read_refs(&ref1, hpet);
 		tsc_pit_khz = pit_calibrate_tsc(latch, ms, loopmin);
 		tsc2 = tsc_read_refs(&ref2, hpet);
-		local_irq_restore(flags);
+		hard_local_irq_restore(flags);
 
 		/* Pick the lowest PIT TSC calibration so far */
 		tsc_pit_min = min(tsc_pit_min, tsc_pit_khz);
@@ -1006,7 +1006,7 @@ static void detect_art(void)
 
 /* clocksource code */
 
-static struct clocksource clocksource_tsc;
+struct clocksource clocksource_tsc;
 
 static void tsc_resume(struct clocksource *cs)
 {
@@ -1058,7 +1058,7 @@ static void tsc_cs_tick_stable(struct clocksource *cs)
 /*
  * .mask MUST be CLOCKSOURCE_MASK(64). See comment above read_tsc()
  */
-static struct clocksource clocksource_tsc = {
+struct clocksource clocksource_tsc = {
 	.name                   = "tsc",
 	.rating                 = 300,
 	.read                   = read_tsc,
