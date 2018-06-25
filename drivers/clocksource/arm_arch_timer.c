@@ -805,7 +805,7 @@ static void __arch_timer_setup(unsigned type,
 
 #ifdef CONFIG_IPIPE
 		clk->ipipe_timer = raw_cpu_ptr(&arch_itimer);
-		if (arch_timer_mem_use_virtual) {
+		if (arch_timer_uses_ppi == ARCH_TIMER_VIRT_PPI) {
 			clk->ipipe_timer->irq = arch_timer_ppi[ARCH_TIMER_VIRT_PPI];
 			clk->ipipe_timer->ack = arch_itimer_ack_virt;
 		} else {
