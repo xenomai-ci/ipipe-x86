@@ -17,6 +17,7 @@
 #include <linux/tracehook.h>
 #include <linux/audit.h>
 #include <linux/seccomp.h>
+#include <linux/unistd.h>
 #include <linux/signal.h>
 #include <linux/export.h>
 #include <linux/context_tracking.h>
@@ -143,7 +144,7 @@ static void exit_to_usermode_loop(struct pt_regs *regs, u32 cached_flags)
 	 */
 	while (true) {
 		/* We have work to do. */
-		local_irq_enable();
+		local_irq_enable();	/* IPIPE: hardirqs on too */
 
 		if (cached_flags & _TIF_NEED_RESCHED)
 			schedule();
@@ -170,6 +171,8 @@ static void exit_to_usermode_loop(struct pt_regs *regs, u32 cached_flags)
 		/* Disable IRQs and retry */
 		local_irq_disable();
 
+		hard_cond_local_irq_disable();
+
 		cached_flags = READ_ONCE(current_thread_info()->flags);
 
 		if (!(cached_flags & EXIT_TO_USERMODE_LOOP_FLAGS))
@@ -182,6 +185,12 @@ __visible inline void prepare_exit_to_usermode(struct pt_regs *regs)
 {
 	struct thread_info *ti = current_thread_info();
 	u32 cached_flags;
+#ifdef CONFIG_IPIPE
+	unsigned long flags;
+
+	local_irq_save(flags);
+	hard_local_irq_enable();
+#endif
 
 	addr_limit_user_check();
 
@@ -218,6 +227,11 @@ __visible inline void prepare_exit_to_usermode(struct pt_regs *regs)
 	user_enter_irqoff();
 
 	mds_user_clear_cpu_buffers();
+
+#ifdef CONFIG_IPIPE
+	local_irq_restore(flags);
+	hard_local_irq_disable();
+#endif
 }
 
 #define SYSCALL_EXIT_WORK_FLAGS				\
@@ -271,6 +285,7 @@ __visible inline void syscall_return_slowpath(struct pt_regs *regs)
 		syscall_slow_exit_work(regs, cached_flags);
 
 	local_irq_disable();
+	hard_cond_local_irq_disable();
 	prepare_exit_to_usermode(regs);
 }
 
@@ -352,7 +367,7 @@ static __always_inline void do_syscall_32_irqs_on(struct pt_regs *regs)
 __visible void do_int80_syscall_32(struct pt_regs *regs)
 {
 	enter_from_user_mode();
-	local_irq_enable();
+	local_irq_enable();	/* IPIPE: hardirqs on too */
 	do_syscall_32_irqs_on(regs);
 }
 
@@ -376,7 +391,7 @@ __visible long do_fast_syscall_32(struct pt_regs *regs)
 
 	enter_from_user_mode();
 
-	local_irq_enable();
+	local_irq_enable();	/* IPIPE: hardirqs on too */
 
 	/* Fetch EBP from where the vDSO stashed it. */
 	if (
@@ -395,6 +410,7 @@ __visible long do_fast_syscall_32(struct pt_regs *regs)
 
 		/* User code screwed up. */
 		local_irq_disable();
+		hard_cond_local_irq_disable();
 		regs->ax = -EFAULT;
 		prepare_exit_to_usermode(regs);
 		return 0;	/* Keep it simple: use IRET. */

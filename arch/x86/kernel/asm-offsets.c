@@ -38,6 +38,9 @@ static void __used common(void)
 #endif
 
 	BLANK();
+#ifdef CONFIG_IPIPE
+        OFFSET(TASK_TI_ipipe, task_struct, thread_info.ipipe_flags);
+#endif
 	OFFSET(TASK_addr_limit, task_struct, thread.addr_limit);
 
 	BLANK();

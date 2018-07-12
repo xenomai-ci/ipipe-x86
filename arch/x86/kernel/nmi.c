@@ -489,6 +489,7 @@ static DEFINE_PER_CPU(unsigned long, nmi_cr2);
  */
 static DEFINE_PER_CPU(int, update_debug_stack);
 
+#ifndef CONFIG_IPIPE
 static bool notrace is_debug_stack(unsigned long addr)
 {
 	struct cea_exception_stacks *cs = __this_cpu_read(cea_exception_stacks);
@@ -505,6 +506,9 @@ static bool notrace is_debug_stack(unsigned long addr)
 	return addr >= bot && addr < top;
 }
 NOKPROBE_SYMBOL(is_debug_stack);
+#else /* IPIPE */
+static bool notrace is_debug_stack(unsigned long addr) { return 0; }
+#endif
 #endif
 
 dotraplinkage notrace void
