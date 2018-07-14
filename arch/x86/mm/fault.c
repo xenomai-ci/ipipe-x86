@@ -1516,6 +1516,12 @@ static noinline void
 __do_page_fault(struct pt_regs *regs, unsigned long hw_error_code,
 		unsigned long address)
 {
+#ifdef CONFIG_IPIPE
+	if (ipipe_root_domain != ipipe_head_domain) {
+		trace_hardirqs_on();
+		hard_local_irq_enable();
+	}
+#endif
 	prefetchw(&current->mm->mmap_sem);
 
 	if (unlikely(kmmio_fault(regs, address)))
