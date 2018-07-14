@@ -899,7 +899,7 @@ ENTRY(switch_to_thread_stack)
 	ret
 END(switch_to_thread_stack)
 
-.macro idtentry sym do_sym has_error_code:req paranoid=0 shift_ist=-1
+.macro idtentry sym do_sym has_error_code:req paranoid=0 shift_ist=-1 trapnr=-1
 ENTRY(\sym)
 	UNWIND_HINT_IRET_REGS offset=\has_error_code*8
 
@@ -935,6 +935,21 @@ ENTRY(\sym)
 	.endif
 	.endif
 
+#ifdef CONFIG_IPIPE
+	movq	EFLAGS(%rsp), %r14		/* regs->flags */
+	movq	%rsp, %rdi			/* pt_regs pointer */
+	movl	$\trapnr, %esi			/* trap number */
+	subq	$8, %rsp
+	movq	%rsp, %rdx			/* &flags */
+	call	__ipipe_trap_prologue
+	popq	%r13
+	mov	%rax, %r12			/* save propagation status */
+	.if \paranoid == 0			/* paranoid may not skip handler */
+	testl	%eax, %eax
+	jg	98f				/* skip regular handler if > 0 */
+	.endif
+#endif
+
 	movq	%rsp, %rdi			/* pt_regs pointer */
 
 	.if \has_error_code
@@ -949,6 +964,27 @@ ENTRY(\sym)
 	.endif
 
 	call	\do_sym
+
+#ifdef CONFIG_IPIPE
+	testl	%r12d, %r12d
+	jnz	97f
+	movq	%rsp, %rdi			/* pt_regs pointer */
+	movq	%r13, %rsi			/* &flags from prologue */
+	movq	%r14, %rdx			/* original regs->flags before fixup */
+	call	__ipipe_trap_epilogue
+97:
+	.if \paranoid == 0			/* paranoid implies normal epilogue */
+	testl	%r12d, %r12d
+	jz	99f
+98:
+	UNWIND_HINT_REGS
+	DISABLE_INTERRUPTS(CLBR_ANY)
+	testl	%ebx, %ebx	/* %ebx: return to kernel mode */
+	jnz	retint_kernel_early
+	jmp	retint_user_early
+	.endif
+99:
+#endif
 
 	.if \shift_ist != -1
 	addq	$EXCEPTION_STKSZ, CPU_TSS_IST(\shift_ist)
@@ -986,19 +1022,19 @@ ENTRY(\sym)
 END(\sym)
 .endm
 
-idtentry divide_error			do_divide_error			has_error_code=0
-idtentry overflow			do_overflow			has_error_code=0
-idtentry bounds				do_bounds			has_error_code=0
-idtentry invalid_op			do_invalid_op			has_error_code=0
-idtentry device_not_available		do_device_not_available		has_error_code=0
-idtentry double_fault			do_double_fault			has_error_code=1 paranoid=2
-idtentry coprocessor_segment_overrun	do_coprocessor_segment_overrun	has_error_code=0
-idtentry invalid_TSS			do_invalid_TSS			has_error_code=1
-idtentry segment_not_present		do_segment_not_present		has_error_code=1
-idtentry spurious_interrupt_bug		do_spurious_interrupt_bug	has_error_code=0
-idtentry coprocessor_error		do_coprocessor_error		has_error_code=0
-idtentry alignment_check		do_alignment_check		has_error_code=1
-idtentry simd_coprocessor_error		do_simd_coprocessor_error	has_error_code=0
+idtentry divide_error			do_divide_error			has_error_code=0	trapnr=0
+idtentry overflow			do_overflow			has_error_code=0	trapnr=4
+idtentry bounds				do_bounds			has_error_code=0	trapnr=5
+idtentry invalid_op			do_invalid_op			has_error_code=0	trapnr=6
+idtentry device_not_available		do_device_not_available		has_error_code=0	trapnr=7
+idtentry double_fault			do_double_fault			has_error_code=1 paranoid=2	trapnr=8
+idtentry coprocessor_segment_overrun	do_coprocessor_segment_overrun	has_error_code=0	trapnr=9
+idtentry invalid_TSS			do_invalid_TSS			has_error_code=1	trapnr=10
+idtentry segment_not_present		do_segment_not_present		has_error_code=1	trapnr=11
+idtentry spurious_interrupt_bug		do_spurious_interrupt_bug	has_error_code=0	trapnr=15
+idtentry coprocessor_error		do_coprocessor_error		has_error_code=0	trapnr=16
+idtentry alignment_check		do_alignment_check		has_error_code=1	trapnr=17
+idtentry simd_coprocessor_error		do_simd_coprocessor_error	has_error_code=0	trapnr=19
 
 
 	/*
@@ -1142,9 +1178,13 @@ apicinterrupt3 HYPERVISOR_CALLBACK_VECTOR \
 	hyperv_callback_vector hyperv_vector_handler
 #endif /* CONFIG_HYPERV */
 
+#ifdef CONFIG_IPIPE
+idtentry debug			do_debug		has_error_code=0	paranoid=1	trapnr=1
+#else
 idtentry debug			do_debug		has_error_code=0	paranoid=1 shift_ist=DEBUG_STACK
-idtentry int3			do_int3			has_error_code=0
-idtentry stack_segment		do_stack_segment	has_error_code=1
+#endif
+idtentry int3			do_int3			has_error_code=0	trapnr=3
+idtentry stack_segment		do_stack_segment	has_error_code=1	trapnr=12
 
 #ifdef CONFIG_XEN
 idtentry xennmi			do_nmi			has_error_code=0
@@ -1152,15 +1192,15 @@ idtentry xendebug		do_debug		has_error_code=0
 idtentry xenint3		do_int3			has_error_code=0
 #endif
 
-idtentry general_protection	do_general_protection	has_error_code=1
-idtentry page_fault		do_page_fault		has_error_code=1
+idtentry general_protection	do_general_protection	has_error_code=1	trapnr=13
+idtentry page_fault		do_page_fault		has_error_code=1	trapnr=14
 
 #ifdef CONFIG_KVM_GUEST
-idtentry async_page_fault	do_async_page_fault	has_error_code=1
+idtentry async_page_fault	do_async_page_fault	has_error_code=1	trapnr=14
 #endif
 
 #ifdef CONFIG_X86_MCE
-idtentry machine_check		do_mce			has_error_code=0	paranoid=1
+idtentry machine_check		do_mce			has_error_code=0	paranoid=1	trapnr=18
 #endif
 
 /*

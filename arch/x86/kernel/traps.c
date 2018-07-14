@@ -14,6 +14,7 @@
 
 #include <linux/context_tracking.h>
 #include <linux/interrupt.h>
+#include <linux/ipipe.h>
 #include <linux/kallsyms.h>
 #include <linux/spinlock.h>
 #include <linux/kprobes.h>
@@ -76,13 +77,13 @@ DECLARE_BITMAP(used_vectors, NR_VECTORS);
 static inline void cond_local_irq_enable(struct pt_regs *regs)
 {
 	if (regs->flags & X86_EFLAGS_IF)
-		local_irq_enable();
+		hard_local_irq_enable_notrace();
 }
 
 static inline void cond_local_irq_disable(struct pt_regs *regs)
 {
 	if (regs->flags & X86_EFLAGS_IF)
-		local_irq_disable();
+		hard_local_irq_disable_notrace();
 }
 
 /*
@@ -537,7 +538,7 @@ do_general_protection(struct pt_regs *regs, long error_code)
 	cond_local_irq_enable(regs);
 
 	if (v8086_mode(regs)) {
-		local_irq_enable();
+		hard_local_irq_enable();
 		handle_vm86_fault((struct kernel_vm86_regs *) regs, error_code);
 		return;
 	}
@@ -923,7 +924,7 @@ dotraplinkage void do_iret_error(struct pt_regs *regs, long error_code)
 	siginfo_t info;
 
 	RCU_LOCKDEP_WARN(!rcu_is_watching(), "entry code didn't wake RCU");
-	local_irq_enable();
+	hard_local_irq_enable();
 
 	info.si_signo = SIGILL;
 	info.si_errno = 0;
