@@ -502,6 +502,12 @@ __visible void trace_hardirqs_on_caller(unsigned long caller_addr)
 }
 EXPORT_SYMBOL(trace_hardirqs_on_caller);
 
+__visible void trace_hardirqs_on_virt_caller(unsigned long caller_addr)
+{
+	if (ipipe_root_p && !raw_irqs_disabled())
+		trace_hardirqs_on_caller(caller_addr);
+}
+
 __visible void trace_hardirqs_off_caller(unsigned long caller_addr)
 {
 	if (ipipe_root_p && !preempt_trace() && irq_trace())
