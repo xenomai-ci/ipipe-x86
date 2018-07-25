@@ -57,7 +57,7 @@ END(native_usergs_sysret64)
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bt	$9, EFLAGS(%rsp)		/* interrupts off? */
 	jnc	1f
-	TRACE_IRQS_ON
+	TRACE_IRQS_ON_VIRT
 1:
 #endif
 .endm
