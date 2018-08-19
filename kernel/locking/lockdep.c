@@ -2931,6 +2931,12 @@ __visible void trace_hardirqs_on_caller(unsigned long ip)
 }
 EXPORT_SYMBOL(trace_hardirqs_on_caller);
 
+void trace_hardirqs_on(void)
+{
+	trace_hardirqs_on_caller(CALLER_ADDR0);
+}
+EXPORT_SYMBOL(trace_hardirqs_on);
+
 __visible void trace_hardirqs_on_virt_caller(unsigned long ip)
 {
 	/*
@@ -2938,15 +2944,14 @@ __visible void trace_hardirqs_on_virt_caller(unsigned long ip)
 	 * must consider the virtual disable flag exclusively when
 	 * leaving an interrupt/fault context.
 	 */
-	if (ipipe_root_p && !raw_irqs_disabled())
+	if (ipipe_root_p && !irqs_disabled())
 		trace_hardirqs_on_caller(ip);
 }
 
-void trace_hardirqs_on(void)
+__visible void trace_hardirqs_on_virt(void)
 {
-	trace_hardirqs_on_caller(CALLER_ADDR0);
+	trace_hardirqs_on_virt_caller(CALLER_ADDR0);
 }
-EXPORT_SYMBOL(trace_hardirqs_on);
 
 /*
  * Hardirqs were disabled:
