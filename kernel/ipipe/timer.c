@@ -36,7 +36,6 @@ static IPIPE_DEFINE_SPINLOCK(lock);
 
 static DEFINE_PER_CPU(struct ipipe_timer *, percpu_timer);
 
-#ifdef CONFIG_GENERIC_CLOCKEVENTS
 /*
  * Default request method: switch to oneshot mode if supported.
  */
@@ -142,7 +141,6 @@ void ipipe_host_timer_register(struct clock_event_device *evtdev)
 
 	ipipe_timer_register(timer);
 }
-#endif /* CONFIG_GENERIC_CLOCKEVENTS */
 
 /*
  * register a timer: maintain them in a list sorted by rating
@@ -181,13 +179,7 @@ static void ipipe_timer_request_sync(void)
 		return;
 
 	evtdev = timer->host_timer;
-
-#ifdef CONFIG_GENERIC_CLOCKEVENTS
 	steal = evtdev != NULL && !clockevent_state_detached(evtdev);
-#else /* !CONFIG_GENERIC_CLOCKEVENTS */
-	steal = 1;
-#endif /* !CONFIG_GENERIC_CLOCKEVENTS */
-
 	timer->request(timer, steal);
 }
 
@@ -232,11 +224,9 @@ static void select_root_only_timer(unsigned cpu, unsigned hrclock_khz,
 	 */
 	for_each_cpu(icpu, mask) {
 		if (t->irq == per_cpu(ipipe_percpu.hrtimer_irq, icpu)) {
-#ifdef CONFIG_GENERIC_CLOCKEVENTS
 			evtdev = t->host_timer;
 			if (evtdev && clockevent_state_shutdown(evtdev))
 				continue;
-#endif /* CONFIG_GENERIC_CLOCKEVENTS */
 			goto found;
 		}
 	}
@@ -281,11 +271,9 @@ int ipipe_select_timers(const struct cpumask *mask)
 			if (!cpumask_test_cpu(cpu, t->cpumask))
 				continue;
 
-#ifdef CONFIG_GENERIC_CLOCKEVENTS
 			evtdev = t->host_timer;
 			if (evtdev && clockevent_state_shutdown(evtdev))
 				continue;
-#endif /* CONFIG_GENERIC_CLOCKEVENTS */
 			goto found;
 		}
 
@@ -422,7 +410,6 @@ int ipipe_timer_start(void (*tick_handler)(void),
 		return ret;
 	}
 
-#ifdef CONFIG_GENERIC_CLOCKEVENTS
 	steal = evtdev != NULL && !clockevent_state_detached(evtdev);
 	if (steal && evtdev->ipipe_stolen == 0) {
 		timer->real_mult = evtdev->mult;
@@ -445,10 +432,6 @@ int ipipe_timer_start(void (*tick_handler)(void),
 	}
 
 	ret = get_dev_mode(evtdev);
-#else /* CONFIG_GENERIC_CLOCKEVENTS */
-	steal = 1;
-	ret = 0;
-#endif /* CONFIG_GENERIC_CLOCKEVENTS */
 
 	ipipe_critical_exit(flags);
 
@@ -473,7 +456,6 @@ void ipipe_timer_stop(unsigned cpu)
 	if (desc && irqd_irq_disabled(&desc->irq_data))
 		ipipe_disable_irq(timer->irq);
 
-#ifdef CONFIG_GENERIC_CLOCKEVENTS
 	if (evtdev) {
 		flags = ipipe_critical_enter(NULL);
 
@@ -490,7 +472,6 @@ void ipipe_timer_stop(unsigned cpu)
 
 		ipipe_critical_exit(flags);
 	}
-#endif /* CONFIG_GENERIC_CLOCKEVENTS */
 
 	ipipe_free_irq(ipipe_head_domain, timer->irq);
 }
