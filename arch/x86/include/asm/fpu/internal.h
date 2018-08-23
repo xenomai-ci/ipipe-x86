@@ -25,6 +25,7 @@
 /*
  * High level FPU state handling functions:
  */
+extern void fpu__initialize(struct fpu *fpu);
 extern void fpu__prepare_read(struct fpu *fpu);
 extern void fpu__prepare_write(struct fpu *fpu);
 extern void fpu__save(struct fpu *fpu);
@@ -646,5 +647,25 @@ static inline void xsetbv(u32 index, u64 value)
 	asm volatile(".byte 0x0f,0x01,0xd1" /* xsetbv */
 		     : : "a" (eax), "d" (edx), "c" (index));
 }
+
+DECLARE_PER_CPU(bool, in_kernel_fpu);
+
+static inline void kernel_fpu_disable(void)
+{
+	WARN_ON_FPU(this_cpu_read(in_kernel_fpu));
+	this_cpu_write(in_kernel_fpu, true);
+}
+
+static inline void kernel_fpu_enable(void)
+{
+	WARN_ON_FPU(!this_cpu_read(in_kernel_fpu));
+	this_cpu_write(in_kernel_fpu, false);
+}
+
+static inline bool kernel_fpu_disabled(void)
+{
+	return this_cpu_read(in_kernel_fpu);
+}
+
 
 #endif /* _ASM_X86_FPU_INTERNAL_H */

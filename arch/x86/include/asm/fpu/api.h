@@ -11,6 +11,7 @@
 #ifndef _ASM_X86_FPU_API_H
 #define _ASM_X86_FPU_API_H
 #include <linux/bottom_half.h>
+#include <linux/irqflags.h>
 
 /*
  * Use kernel_fpu_begin/end() if you intend to use FPU in kernel context. It
@@ -30,16 +31,25 @@ extern void fpregs_mark_activate(void);
  * fpu->state and set TIF_NEED_FPU_LOAD leaving CPU's FPU registers in
  * a random state.
  */
-static inline void fpregs_lock(void)
+static inline unsigned long fpregs_lock(void)
 {
+#ifdef CONFIG_IPIPE
+	return hard_local_irq_save();
+#else
 	preempt_disable();
 	local_bh_disable();
+	return 0;
+#endif
 }
 
-static inline void fpregs_unlock(void)
+static inline void fpregs_unlock(unsigned long flags)
 {
+#ifdef CONFIG_IPIPE
+	hard_local_irq_restore(flags);
+#else
 	local_bh_enable();
 	preempt_enable();
+#endif
 }
 
 #ifdef CONFIG_X86_DEBUG_FPU
