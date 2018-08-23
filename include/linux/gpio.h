@@ -3,6 +3,7 @@
 #define __LINUX_GPIO_H
 
 #include <linux/errno.h>
+#include <linux/ipipe.h>
 
 /* see Documentation/gpio/gpio-legacy.txt */
 
