@@ -751,6 +751,11 @@ The following kernel areas are involved in interrupt pipelining:
     If this hook returns a boolean *true* value, CPUIDLE proceeds as
     normally. Otherwise, the CPU is simply denied from entering the
     idle state, leaving the timer hardware enabled.
+
+    ..CAUTION:: If some out-of-band code waiting for an external event
+    cannot bear with the latency that might be induced by the default
+    architecture-specific CPU idling code, then CPUIDLE is not usable
+    and should be disabled at build time.
     
   * Kernel preemption control (PREEMPT)
 
