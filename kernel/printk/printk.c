@@ -2032,29 +2032,6 @@ asmlinkage int vprintk_emit(int facility, int level,
 }
 EXPORT_SYMBOL(vprintk_emit);
 
-asmlinkage int vprintk(const char *fmt, va_list args)
-{
-	return vprintk_func(fmt, args);
-}
-EXPORT_SYMBOL(vprintk);
-
-int vprintk_default(const char *fmt, va_list args)
-{
-	int r;
-
-#ifdef CONFIG_KGDB_KDB
-	/* Allow to pass printk() to kdb but avoid a recursion. */
-	if (unlikely(kdb_trap_printk && kdb_printf_cpu < 0)) {
-		r = vkdb_printf(KDB_MSGSRC_PRINTK, fmt, args);
-		return r;
-	}
-#endif
-	r = vprintk_emit(0, LOGLEVEL_DEFAULT, NULL, 0, fmt, args);
-
-	return r;
-}
-EXPORT_SYMBOL_GPL(vprintk_default);
-
 #ifdef CONFIG_IPIPE
 
 extern int __ipipe_printk_bypass;
@@ -2088,7 +2065,7 @@ int __ipipe_log_printk(const char *fmt, va_list args)
 	return ret;
 }
 
-void __ipipe_flush_printk (unsigned virq, void *cookie)
+void __ipipe_flush_printk(unsigned virq, void *cookie)
 {
 	char *p = __ipipe_printk_buf;
 	int len, lmax, out = 0;
@@ -2114,36 +2091,11 @@ start:
 	raw_spin_unlock_irqrestore(&__ipipe_printk_lock, flags);
 }
 
-/**
- * printk - print a kernel message
- * @fmt: format string
- *
- * This is printk(). It can be called from any context. We want it to work.
- *
- * We try to grab the console_lock. If we succeed, it's easy - we log the
- * output and call the console drivers.  If we fail to get the semaphore, we
- * place the output into the log buffer and return. The current holder of
- * the console_sem will notice the new output in console_unlock(); and will
- * send it to the consoles before releasing the lock.
- *
- * One effect of this deferred printing is that code which calls printk() and
- * then changes console_loglevel may break. This is because console_loglevel
- * is inspected when the actual printing occurs.
- *
- * See also:
- * printf(3)
- *
- * See the vsnprintf() documentation for format string extensions over C99.
- */
-
-asmlinkage __visible int printk(const char *fmt, ...)
+static int do_vprintk(const char *fmt, va_list args)
 {
 	int sprintk = 1, cs = -1;
 	unsigned long flags;
-	va_list args;
 	int ret;
-
-	va_start(args, fmt);
 
 	flags = hard_local_irq_save();
 
@@ -2166,27 +2118,73 @@ asmlinkage __visible int printk(const char *fmt, ...)
 	} else
 		ret = __ipipe_log_printk(fmt, args);
 
-	va_end(args);
-
 	return ret;
 }
 
 #else /* !CONFIG_IPIPE */
 
+static int do_vprintk(const char *fmt, va_list args)
+{
+	return vprintk_func(fmt, args);
+}
+
+#endif /* !CONFIG_IPIPE */
+
+asmlinkage int vprintk(const char *fmt, va_list args)
+{
+	return do_vprintk(fmt, args);
+}
+EXPORT_SYMBOL(vprintk);
+
+int vprintk_default(const char *fmt, va_list args)
+{
+	int r;
+
+#ifdef CONFIG_KGDB_KDB
+	/* Allow to pass printk() to kdb but avoid a recursion. */
+	if (unlikely(kdb_trap_printk && kdb_printf_cpu < 0)) {
+		r = vkdb_printf(KDB_MSGSRC_PRINTK, fmt, args);
+		return r;
+	}
+#endif
+	r = vprintk_emit(0, LOGLEVEL_DEFAULT, NULL, 0, fmt, args);
+
+	return r;
+}
+EXPORT_SYMBOL_GPL(vprintk_default);
+
+/**
+ * printk - print a kernel message
+ * @fmt: format string
+ *
+ * This is printk(). It can be called from any context. We want it to work.
+ *
+ * We try to grab the console_lock. If we succeed, it's easy - we log the
+ * output and call the console drivers.  If we fail to get the semaphore, we
+ * place the output into the log buffer and return. The current holder of
+ * the console_sem will notice the new output in console_unlock(); and will
+ * send it to the consoles before releasing the lock.
+ *
+ * One effect of this deferred printing is that code which calls printk() and
+ * then changes console_loglevel may break. This is because console_loglevel
+ * is inspected when the actual printing occurs.
+ *
+ * See also:
+ * printf(3)
+ *
+ * See the vsnprintf() documentation for format string extensions over C99.
+ */
 asmlinkage __visible int printk(const char *fmt, ...)
 {
 	va_list args;
 	int r;
 
 	va_start(args, fmt);
-	r = vprintk_func(fmt, args);
+	r = do_vprintk(fmt, args);
 	va_end(args);
 
 	return r;
 }
-
-#endif /* CONFIG_IPIPE */
-
 EXPORT_SYMBOL(printk);
 
 #else /* CONFIG_PRINTK */
