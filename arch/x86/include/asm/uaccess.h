@@ -7,6 +7,7 @@
 #include <linux/compiler.h>
 #include <linux/kasan-checks.h>
 #include <linux/string.h>
+#include <linux/ipipe.h>
 #include <asm/asm.h>
 #include <asm/page.h>
 #include <asm/smap.h>
@@ -68,7 +69,7 @@ static inline bool __chk_range_not_ok(unsigned long addr, unsigned long size, un
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 static inline bool pagefault_disabled(void);
 # define WARN_ON_IN_IRQ()	\
-	WARN_ON_ONCE(!in_task() && !pagefault_disabled())
+	WARN_ON_ONCE(ipipe_root_p && !in_task() && !pagefault_disabled())
 #else
 # define WARN_ON_IN_IRQ()
 #endif
