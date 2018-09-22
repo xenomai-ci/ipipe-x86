@@ -88,13 +88,6 @@ int ipipe_get_sysinfo(struct ipipe_sysinfo *info)
 }
 EXPORT_SYMBOL_GPL(ipipe_get_sysinfo);
 
-#ifdef CONFIG_X86_UV
-asmlinkage void uv_bau_message_interrupt(struct pt_regs *regs);
-#endif
-#ifdef CONFIG_X86_MCE_THRESHOLD
-asmlinkage void smp_threshold_interrupt(void);
-#endif
-
 static void __ipipe_do_IRQ(unsigned int irq, void *cookie)
 {
 	void (*handler)(struct pt_regs *regs);
