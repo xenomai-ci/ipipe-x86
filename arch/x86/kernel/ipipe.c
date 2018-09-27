@@ -457,7 +457,14 @@ int __ipipe_handle_irq(struct pt_regs *regs)
 			irq = ipipe_apic_vector_irq(vector);
 		else {
 			desc = __this_cpu_read(vector_irq[vector]);
-			BUG_ON(IS_ERR_OR_NULL(desc));
+			if (IS_ERR_OR_NULL(desc)) {
+#ifdef CONFIG_X86_LOCAL_APIC
+				__ack_APIC_irq();
+#endif
+				pr_err("unexpected IRQ trap at vector %#x\n",
+				       vector);
+				goto out;
+			}
 			irq = irq_desc_get_irq(desc);
 		}
 	} else { /* Software-generated. */
@@ -493,7 +500,7 @@ int __ipipe_handle_irq(struct pt_regs *regs)
 		__ipipe_call_mayday(regs);
 
 	ipipe_trace_irqend(irq, regs);
-
+out:
 	if (!__ipipe_root_p ||
 	    test_bit(IPIPE_STALL_FLAG, &__ipipe_root_status))
 		return 0;
