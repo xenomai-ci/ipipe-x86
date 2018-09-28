@@ -5979,8 +5979,6 @@ int __ipipe_migrate_head(void)
 	if (likely(__schedule(false)))
 		return 0;
 
-	BUG_ON(!signal_pending(p));
-
 	preempt_enable();
 	return -ERESTARTSYS;
 }
