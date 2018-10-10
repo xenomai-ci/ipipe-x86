@@ -904,6 +904,46 @@ ENTRY(switch_to_thread_stack)
 	ret
 END(switch_to_thread_stack)
 
+.macro ipipe_idtentry_prologue paranoid=0 trapnr=-1 skip_label=-invalid-
+#ifdef CONFIG_IPIPE
+	movq	EFLAGS(%rsp), %r14		/* regs->flags */
+	movq	%rsp, %rdi			/* pt_regs pointer */
+	movl	$\trapnr, %esi			/* trap number */
+	subq	$8, %rsp
+	movq	%rsp, %rdx			/* &flags */
+	call	__ipipe_trap_prologue
+	popq	%r13
+	mov	%rax, %r12			/* save propagation status */
+	.if \paranoid == 0			/* paranoid may not skip handler */
+	testl	%eax, %eax
+	jg	\skip_label			/* skip regular handler if > 0 */
+	.endif
+#endif
+.endm
+
+.macro ipipe_idtentry_epilogue paranoid=0 skip_label=-invalid-
+#ifdef CONFIG_IPIPE
+	testl	%r12d, %r12d
+	jnz	1000f
+	movq	%rsp, %rdi			/* pt_regs pointer */
+	movq	%r13, %rsi			/* &flags from prologue */
+	movq	%r14, %rdx			/* original regs->flags before fixup */
+	call	__ipipe_trap_epilogue
+1000:
+	.if \paranoid == 0			/* paranoid implies normal epilogue */
+	testl	%r12d, %r12d
+	jz	1001f
+\skip_label:
+	UNWIND_HINT_REGS
+	DISABLE_INTERRUPTS(CLBR_ANY)
+	testl	%ebx, %ebx	/* %ebx: return to kernel mode */
+	jnz	retint_kernel_early
+	jmp	retint_user_early
+	.endif
+1001:
+#endif
+.endm
+
 .macro idtentry sym do_sym has_error_code:req paranoid=0 shift_ist=-1 trapnr=-1
 ENTRY(\sym)
 	UNWIND_HINT_IRET_REGS offset=\has_error_code*8
@@ -940,20 +980,7 @@ ENTRY(\sym)
 	.endif
 	.endif
 
-#ifdef CONFIG_IPIPE
-	movq	EFLAGS(%rsp), %r14		/* regs->flags */
-	movq	%rsp, %rdi			/* pt_regs pointer */
-	movl	$\trapnr, %esi			/* trap number */
-	subq	$8, %rsp
-	movq	%rsp, %rdx			/* &flags */
-	call	__ipipe_trap_prologue
-	popq	%r13
-	mov	%rax, %r12			/* save propagation status */
-	.if \paranoid == 0			/* paranoid may not skip handler */
-	testl	%eax, %eax
-	jg	98f				/* skip regular handler if > 0 */
-	.endif
-#endif
+	ipipe_idtentry_prologue paranoid=\paranoid trapnr=\trapnr skip_label=kernel_skip_\@
 
 	movq	%rsp, %rdi			/* pt_regs pointer */
 
@@ -970,26 +997,7 @@ ENTRY(\sym)
 
 	call	\do_sym
 
-#ifdef CONFIG_IPIPE
-	testl	%r12d, %r12d
-	jnz	97f
-	movq	%rsp, %rdi			/* pt_regs pointer */
-	movq	%r13, %rsi			/* &flags from prologue */
-	movq	%r14, %rdx			/* original regs->flags before fixup */
-	call	__ipipe_trap_epilogue
-97:
-	.if \paranoid == 0			/* paranoid implies normal epilogue */
-	testl	%r12d, %r12d
-	jz	99f
-98:
-	UNWIND_HINT_REGS
-	DISABLE_INTERRUPTS(CLBR_ANY)
-	testl	%ebx, %ebx	/* %ebx: return to kernel mode */
-	jnz	retint_kernel_early
-	jmp	retint_user_early
-	.endif
-99:
-#endif
+	ipipe_idtentry_epilogue paranoid=\paranoid skip_label=kernel_skip_\@
 
 	.if \shift_ist != -1
 	addq	$EXCEPTION_STKSZ, CPU_TSS_IST(\shift_ist)
@@ -1011,6 +1019,8 @@ ENTRY(\sym)
 .Lfrom_usermode_switch_stack_\@:
 	call	error_entry
 
+	ipipe_idtentry_prologue paranoid=\paranoid trapnr=\trapnr skip_label=user_skip_\@
+
 	movq	%rsp, %rdi			/* pt_regs pointer */
 
 	.if \has_error_code
@@ -1021,6 +1031,8 @@ ENTRY(\sym)
 	.endif
 
 	call	\do_sym
+
+	ipipe_idtentry_epilogue paranoid=\paranoid skip_label=user_skip_\@
 
 	jmp	error_exit
 	.endif
