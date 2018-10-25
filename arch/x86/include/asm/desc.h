@@ -309,7 +309,7 @@ static inline void force_reload_TR(void)
  */
 static inline void refresh_tss_limit(void)
 {
-	DEBUG_LOCKS_WARN_ON(preemptible());
+	DEBUG_LOCKS_WARN_ON(!hard_irqs_disabled() && preemptible());
 
 	if (unlikely(this_cpu_read(__tss_limit_invalid)))
 		force_reload_TR();
