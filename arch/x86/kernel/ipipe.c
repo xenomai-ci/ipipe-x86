@@ -70,8 +70,8 @@ void smp_call_function_interrupt(struct pt_regs *regs);
 void smp_call_function_single_interrupt(struct pt_regs *regs);
 void smp_irq_move_cleanup_interrupt(struct pt_regs *regs);
 void smp_reboot_interrupt(void);
-void smp_thermal_interrupt(void);
-void smp_threshold_interrupt(void);
+void smp_thermal_interrupt(struct pt_regs *regs);
+void smp_threshold_interrupt(struct pt_regs *regs);
 
 DEFINE_PER_CPU(unsigned long, __ipipe_cr2);
 EXPORT_PER_CPU_SYMBOL_GPL(__ipipe_cr2);
