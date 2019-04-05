@@ -3738,9 +3738,14 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 			u64 old_msr_data = msr->data;
 			msr->data = data;
 			if (msr - vmx->guest_msrs < vmx->save_nmsrs) {
+				unsigned long flags;
+
 				preempt_disable();
+				flags = hard_cond_local_irq_save();
+				__ipipe_enter_vm(&vcpu->ipipe_notifier);
 				ret = kvm_set_shared_msr(msr->index, msr->data,
 							 msr->mask);
+				hard_cond_local_irq_restore(flags);
 				preempt_enable();
 				if (ret)
 					msr->data = old_msr_data;
