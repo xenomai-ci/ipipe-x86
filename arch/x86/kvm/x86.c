@@ -7956,6 +7956,9 @@ struct kvm_vcpu *kvm_arch_vcpu_create(struct kvm *kvm,
 		"guest TSC will not be reliable\n");
 
 	vcpu = kvm_x86_ops->vcpu_create(kvm, id);
+#ifdef CONFIG_IPIPE
+	vcpu->ipipe_notifier.handler = __ipipe_handle_vm_preemption;
+#endif
 
 	return vcpu;
 }

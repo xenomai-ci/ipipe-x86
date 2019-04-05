@@ -10088,9 +10088,6 @@ static struct kvm_vcpu *vmx_create_vcpu(struct kvm *kvm, unsigned int id)
 	cpu = get_cpu();
 	vmx_vcpu_load(&vmx->vcpu, cpu);
 	vmx->vcpu.cpu = cpu;
-#ifdef CONFIG_IPIPE
-	vmx->vcpu.ipipe_notifier.handler = __ipipe_handle_vm_preemption;
-#endif
 	err = vmx_vcpu_setup(vmx);
 	hard_cond_local_irq_disable();
 	vmx_vcpu_put(&vmx->vcpu);
