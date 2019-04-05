@@ -3049,8 +3049,11 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 	 */
 	set_debugreg(0, 6);
 
+#ifdef CONFIG_IPIPE
+	vcpu->ipipe_put_vcpu = false;
 	if (!smsr->dirty)
 		__ipipe_exit_vm();
+#endif
 
 	hard_cond_local_irq_restore(flags);
 }
@@ -3064,7 +3067,8 @@ void __ipipe_handle_vm_preemption(struct ipipe_vm_notifier *nfy)
 	struct kvm_vcpu *vcpu;
 
 	vcpu = container_of(nfy, struct kvm_vcpu, ipipe_notifier);
-	kvm_arch_vcpu_put(vcpu);
+	if (vcpu->ipipe_put_vcpu)
+		kvm_arch_vcpu_put(vcpu);
 	kvm_restore_shared_msrs(smsr);
 	__ipipe_exit_vm();
 }
@@ -7129,7 +7133,10 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	local_irq_disable();
 	hard_cond_local_irq_disable();
 
+#ifdef CONFIG_IPIPE
 	__ipipe_enter_vm(&vcpu->ipipe_notifier);
+	vcpu->ipipe_put_vcpu = true;
+#endif
 
 	kvm_x86_ops->prepare_guest_switch(vcpu);
 
