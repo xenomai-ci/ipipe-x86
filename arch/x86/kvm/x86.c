@@ -3023,6 +3023,15 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 		vcpu->arch.preempted_in_kernel = !kvm_x86_ops->get_cpl(vcpu);
 
 	flags = hard_cond_local_irq_save();
+
+	/*
+	 * Do not update steal time accounting while running over the head
+	 * domain as this may introduce high latencies and will also issue
+	 * context violation reports.
+	 */
+	if (!ipipe_root_p)
+		goto skip_steal_time_update;
+
 	/*
 	 * Disable page faults because we're in atomic context here.
 	 * kvm_write_guest_offset_cached() would call might_fault()
@@ -3040,6 +3049,7 @@ void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 	kvm_steal_time_set_preempted(vcpu);
 	srcu_read_unlock(&vcpu->kvm->srcu, idx);
 	pagefault_enable();
+skip_steal_time_update:
 	kvm_x86_ops->vcpu_put(vcpu);
 	vcpu->arch.last_host_tsc = rdtsc();
 	/*
