@@ -3088,11 +3088,8 @@ void __ipipe_handle_vm_preemption(struct ipipe_vm_notifier *nfy)
 	struct kvm_vcpu *vcpu;
 
 	vcpu = container_of(nfy, struct kvm_vcpu, ipipe_notifier);
-	if (vcpu->ipipe_put_vcpu) {
-		preempt_disable();
+	if (vcpu->ipipe_put_vcpu)
 		kvm_arch_vcpu_put(vcpu);
-		preempt_enable_no_resched();
-	}
 	kvm_restore_shared_msrs(smsr);
 	__ipipe_exit_vm();
 }
