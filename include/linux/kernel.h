@@ -15,6 +15,7 @@
 #include <linux/printk.h>
 #include <linux/build_bug.h>
 #include <asm/byteorder.h>
+#include <asm-generic/ipipe.h>
 #include <asm/div64.h>
 #include <uapi/linux/kernel.h>
 #include <asm/div64.h>
