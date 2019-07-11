@@ -938,8 +938,8 @@ END(switch_to_thread_stack)
 \skip_label:
 	UNWIND_HINT_REGS
 	DISABLE_INTERRUPTS(CLBR_ANY)
-	testl	%ebx, %ebx	/* %ebx: return to kernel mode */
-	jnz	retint_kernel_early
+	testb	$3, CS(%rsp)
+	jz	retint_kernel_early
 	jmp	retint_user_early
 	.endif
 1001:
