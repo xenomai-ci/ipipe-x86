@@ -411,7 +411,6 @@ fail:
 
 struct cpg_mssr_clk_domain {
 	struct generic_pm_domain genpd;
-	struct device_node *np;
 	unsigned int num_core_pm_clks;
 	unsigned int core_pm_clks[0];
 };
@@ -423,7 +422,7 @@ static bool cpg_mssr_is_pm_clk(const struct of_phandle_args *clkspec,
 {
 	unsigned int i;
 
-	if (clkspec->np != pd->np || clkspec->args_count != 2)
+	if (clkspec->np != pd->genpd.dev.of_node || clkspec->args_count != 2)
 		return false;
 
 	switch (clkspec->args[0]) {
@@ -474,16 +473,12 @@ found:
 		return PTR_ERR(clk);
 
 	error = pm_clk_create(dev);
-	if (error) {
-		dev_err(dev, "pm_clk_create failed %d\n", error);
+	if (error)
 		goto fail_put;
-	}
 
 	error = pm_clk_add_clk(dev, clk);
-	if (error) {
-		dev_err(dev, "pm_clk_add_clk %pC failed %d\n", clk, error);
+	if (error)
 		goto fail_destroy;
-	}
 
 	return 0;
 
@@ -513,7 +508,6 @@ static int __init cpg_mssr_add_clk_domain(struct device *dev,
 	if (!pd)
 		return -ENOMEM;
 
-	pd->np = np;
 	pd->num_core_pm_clks = num_core_pm_clks;
 	memcpy(pd->core_pm_clks, core_pm_clks, pm_size);
 
@@ -540,17 +534,11 @@ static int cpg_mssr_reset(struct reset_controller_dev *rcdev,
 	unsigned int reg = id / 32;
 	unsigned int bit = id % 32;
 	u32 bitmask = BIT(bit);
-	unsigned long flags;
-	u32 value;
 
 	dev_dbg(priv->dev, "reset %u%02u\n", reg, bit);
 
 	/* Reset module */
-	spin_lock_irqsave(&priv->rmw_lock, flags);
-	value = readl(priv->base + SRCR(reg));
-	value |= bitmask;
-	writel(value, priv->base + SRCR(reg));
-	spin_unlock_irqrestore(&priv->rmw_lock, flags);
+	writel(bitmask, priv->base + SRCR(reg));
 
 	/* Wait for at least one cycle of the RCLK clock (@ ca. 32 kHz) */
 	udelay(35);
@@ -567,16 +555,10 @@ static int cpg_mssr_assert(struct reset_controller_dev *rcdev, unsigned long id)
 	unsigned int reg = id / 32;
 	unsigned int bit = id % 32;
 	u32 bitmask = BIT(bit);
-	unsigned long flags;
-	u32 value;
 
 	dev_dbg(priv->dev, "assert %u%02u\n", reg, bit);
 
-	spin_lock_irqsave(&priv->rmw_lock, flags);
-	value = readl(priv->base + SRCR(reg));
-	value |= bitmask;
-	writel(value, priv->base + SRCR(reg));
-	spin_unlock_irqrestore(&priv->rmw_lock, flags);
+	writel(bitmask, priv->base + SRCR(reg));
 	return 0;
 }
 
