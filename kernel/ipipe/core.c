@@ -605,8 +605,6 @@ void __ipipe_spin_unlock_irqcomplete(unsigned long x)
 	hard_local_irq_restore(x);
 }
 
-#ifdef __IPIPE_3LEVEL_IRQMAP
-
 /* Must be called hw IRQs off. */
 static inline void __ipipe_set_irq_held(struct ipipe_percpu_domain_data *p,
 					unsigned int irq)
@@ -614,6 +612,147 @@ static inline void __ipipe_set_irq_held(struct ipipe_percpu_domain_data *p,
 	__set_bit(irq, p->irqheld_map);
 	p->irqall[irq]++;
 }
+
+#if __IPIPE_IRQMAP_LEVELS == 4
+
+/* Must be called hw IRQs off. */
+void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq)
+{
+	struct ipipe_percpu_domain_data *p = ipipe_this_cpu_context(ipd);
+	int l0b, l1b, l2b;
+
+	IPIPE_WARN_ONCE(!hard_irqs_disabled());
+
+	l0b = irq / (BITS_PER_LONG * BITS_PER_LONG * BITS_PER_LONG);
+	l1b = irq / (BITS_PER_LONG * BITS_PER_LONG);
+	l2b = irq / BITS_PER_LONG;
+
+	if (likely(!test_bit(IPIPE_LOCK_FLAG, &ipd->irqs[irq].control))) {
+		__set_bit(l0b, &p->irqpend_0map);
+		__set_bit(l1b, p->irqpend_1map);
+		__set_bit(l2b, p->irqpend_2map);
+		__set_bit(irq, p->irqpend_map);
+	} else
+		__set_bit(irq, p->irqheld_map);
+
+	p->irqall[irq]++;
+}
+EXPORT_SYMBOL_GPL(__ipipe_set_irq_pending);
+
+/* Must be called hw IRQs off. */
+void __ipipe_lock_irq(unsigned int irq)
+{
+	struct ipipe_domain *ipd = ipipe_root_domain;
+	struct ipipe_percpu_domain_data *p;
+	int l0b, l1b, l2b;
+
+	IPIPE_WARN_ONCE(!hard_irqs_disabled());
+
+	/*
+	 * Interrupts requested by a registered head domain cannot be
+	 * locked, since this would make no sense: interrupts are
+	 * globally masked at CPU level when the head domain is
+	 * stalled, so there is no way we could encounter the
+	 * situation IRQ locks are handling.
+	 */
+	if (test_and_set_bit(IPIPE_LOCK_FLAG, &ipd->irqs[irq].control))
+		return;
+
+	p = ipipe_this_cpu_context(ipd);
+	if (__test_and_clear_bit(irq, p->irqpend_map)) {
+		__set_bit(irq, p->irqheld_map);
+		l2b = irq / BITS_PER_LONG;
+		if (p->irqpend_map[l2b] == 0) {
+			__clear_bit(l2b, p->irqpend_2map);
+			l1b = l2b / BITS_PER_LONG;
+			if (p->irqpend_2map[l1b] == 0) {
+				__clear_bit(l1b, p->irqpend_1map);
+				l0b = l1b / BITS_PER_LONG;
+				if (p->irqpend_1map[l0b] == 0)
+					__clear_bit(l0b, &p->irqpend_0map);
+			}
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(__ipipe_lock_irq);
+
+/* Must be called hw IRQs off. */
+void __ipipe_unlock_irq(unsigned int irq)
+{
+	struct ipipe_domain *ipd = ipipe_root_domain;
+	struct ipipe_percpu_domain_data *p;
+	int l0b, l1b, l2b, cpu;
+
+	IPIPE_WARN_ONCE(!hard_irqs_disabled());
+
+	if (!test_and_clear_bit(IPIPE_LOCK_FLAG, &ipd->irqs[irq].control))
+		return;
+
+	l0b = irq / (BITS_PER_LONG * BITS_PER_LONG * BITS_PER_LONG);
+	l1b = irq / (BITS_PER_LONG * BITS_PER_LONG);
+	l2b = irq / BITS_PER_LONG;
+
+	for_each_online_cpu(cpu) {
+		p = ipipe_this_cpu_root_context();
+		if (test_and_clear_bit(irq, p->irqheld_map)) {
+			/* We need atomic ops here: */
+			set_bit(irq, p->irqpend_map);
+			set_bit(l2b, p->irqpend_2map);
+			set_bit(l1b, p->irqpend_1map);
+			set_bit(l0b, &p->irqpend_0map);
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(__ipipe_unlock_irq);
+
+#define wmul1(__n)  ((__n) * BITS_PER_LONG)
+#define wmul2(__n)  (wmul1(__n) * BITS_PER_LONG)
+#define wmul3(__n)  (wmul2(__n) * BITS_PER_LONG)
+
+static inline int __ipipe_next_irq(struct ipipe_percpu_domain_data *p)
+{
+	unsigned long l0m, l1m, l2m, l3m;
+	int l0b, l1b, l2b, l3b;
+	unsigned int irq;
+
+	l0m = p->irqpend_0map;
+	if (unlikely(l0m == 0))
+		return -1;
+	l0b = __ipipe_ffnz(l0m);
+	irq = wmul3(l0b);
+
+	l1m = p->irqpend_1map[l0b];
+	if (unlikely(l1m == 0))
+		return -1;
+	l1b = __ipipe_ffnz(l1m);
+	irq += wmul2(l1b);
+
+	l2m = p->irqpend_2map[wmul1(l0b) + l1b];
+	if (unlikely(l2m == 0))
+		return -1;
+	l2b = __ipipe_ffnz(l2m);
+	irq += wmul1(l2b);
+
+	l3m = p->irqpend_map[wmul2(l0b) + wmul1(l1b) + l2b];
+	if (unlikely(l3m == 0))
+		return -1;
+	l3b = __ipipe_ffnz(l3m);
+	irq += l3b;
+
+	__clear_bit(irq, p->irqpend_map);
+	if (p->irqpend_map[irq / BITS_PER_LONG] == 0) {
+		__clear_bit(l2b, &p->irqpend_2map[wmul1(l0b) + l1b]);
+		if (p->irqpend_2map[wmul1(l0b) + l1b] == 0) {
+			__clear_bit(l1b, &p->irqpend_1map[l0b]);
+			if (p->irqpend_1map[l0b] == 0)
+				__clear_bit(l0b, &p->irqpend_0map);
+		}
+	}
+
+	return irq;
+}
+
+#elif __IPIPE_IRQMAP_LEVELS == 3
 
 /* Must be called hw IRQs off. */
 void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq)
@@ -627,9 +766,9 @@ void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq)
 	l1b = irq / BITS_PER_LONG;
 
 	if (likely(!test_bit(IPIPE_LOCK_FLAG, &ipd->irqs[irq].control))) {
-		__set_bit(irq, p->irqpend_lomap);
-		__set_bit(l1b, p->irqpend_mdmap);
-		__set_bit(l0b, &p->irqpend_himap);
+		__set_bit(irq, p->irqpend_map);
+		__set_bit(l1b, p->irqpend_1map);
+		__set_bit(l0b, &p->irqpend_0map);
 	} else
 		__set_bit(irq, p->irqheld_map);
 
@@ -660,12 +799,12 @@ void __ipipe_lock_irq(unsigned int irq)
 	l1b = irq / BITS_PER_LONG;
 
 	p = ipipe_this_cpu_context(ipd);
-	if (__test_and_clear_bit(irq, p->irqpend_lomap)) {
+	if (__test_and_clear_bit(irq, p->irqpend_map)) {
 		__set_bit(irq, p->irqheld_map);
-		if (p->irqpend_lomap[l1b] == 0) {
-			__clear_bit(l1b, p->irqpend_mdmap);
-			if (p->irqpend_mdmap[l0b] == 0)
-				__clear_bit(l0b, &p->irqpend_himap);
+		if (p->irqpend_map[l1b] == 0) {
+			__clear_bit(l1b, p->irqpend_1map);
+			if (p->irqpend_1map[l0b] == 0)
+				__clear_bit(l0b, &p->irqpend_0map);
 		}
 	}
 }
@@ -690,9 +829,9 @@ void __ipipe_unlock_irq(unsigned int irq)
 		p = ipipe_this_cpu_root_context();
 		if (test_and_clear_bit(irq, p->irqheld_map)) {
 			/* We need atomic ops here: */
-			set_bit(irq, p->irqpend_lomap);
-			set_bit(l1b, p->irqpend_mdmap);
-			set_bit(l0b, &p->irqpend_himap);
+			set_bit(irq, p->irqpend_map);
+			set_bit(l1b, p->irqpend_1map);
+			set_bit(l0b, &p->irqpend_0map);
 		}
 	}
 }
@@ -704,42 +843,34 @@ static inline int __ipipe_next_irq(struct ipipe_percpu_domain_data *p)
 	unsigned long l0m, l1m, l2m;
 	unsigned int irq;
 
-	l0m = p->irqpend_himap;
+	l0m = p->irqpend_0map;
 	if (unlikely(l0m == 0))
 		return -1;
 
 	l0b = __ipipe_ffnz(l0m);
-	l1m = p->irqpend_mdmap[l0b];
+	l1m = p->irqpend_1map[l0b];
 	if (unlikely(l1m == 0))
 		return -1;
 
 	l1b = __ipipe_ffnz(l1m) + l0b * BITS_PER_LONG;
-	l2m = p->irqpend_lomap[l1b];
+	l2m = p->irqpend_map[l1b];
 	if (unlikely(l2m == 0))
 		return -1;
 
 	l2b = __ipipe_ffnz(l2m);
 	irq = l1b * BITS_PER_LONG + l2b;
 
-	__clear_bit(irq, p->irqpend_lomap);
-	if (p->irqpend_lomap[l1b] == 0) {
-		__clear_bit(l1b, p->irqpend_mdmap);
-		if (p->irqpend_mdmap[l0b] == 0)
-			__clear_bit(l0b, &p->irqpend_himap);
+	__clear_bit(irq, p->irqpend_map);
+	if (p->irqpend_map[l1b] == 0) {
+		__clear_bit(l1b, p->irqpend_1map);
+		if (p->irqpend_1map[l0b] == 0)
+			__clear_bit(l0b, &p->irqpend_0map);
 	}
 
 	return irq;
 }
 
-#else /* __IPIPE_2LEVEL_IRQMAP */
-
-/* Must be called hw IRQs off. */
-static inline void __ipipe_set_irq_held(struct ipipe_percpu_domain_data *p,
-					unsigned int irq)
-{
-	__set_bit(irq, p->irqheld_map);
-	p->irqall[irq]++;
-}
+#else /* __IPIPE_IRQMAP_LEVELS == 2 */
 
 /* Must be called hw IRQs off. */
 void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq)
@@ -750,8 +881,8 @@ void __ipipe_set_irq_pending(struct ipipe_domain *ipd, unsigned int irq)
 	IPIPE_WARN_ONCE(!hard_irqs_disabled());
 
 	if (likely(!test_bit(IPIPE_LOCK_FLAG, &ipd->irqs[irq].control))) {
-		__set_bit(irq, p->irqpend_lomap);
-		__set_bit(l0b, &p->irqpend_himap);
+		__set_bit(irq, p->irqpend_map);
+		__set_bit(l0b, &p->irqpend_0map);
 	} else
 		__set_bit(irq, p->irqheld_map);
 
@@ -772,10 +903,10 @@ void __ipipe_lock_irq(unsigned int irq)
 		return;
 
 	p = ipipe_this_cpu_root_context();
-	if (__test_and_clear_bit(irq, p->irqpend_lomap)) {
+	if (__test_and_clear_bit(irq, p->irqpend_map)) {
 		__set_bit(irq, p->irqheld_map);
-		if (p->irqpend_lomap[l0b] == 0)
-			__clear_bit(l0b, &p->irqpend_himap);
+		if (p->irqpend_map[l0b] == 0)
+			__clear_bit(l0b, &p->irqpend_0map);
 	}
 }
 EXPORT_SYMBOL_GPL(__ipipe_lock_irq);
@@ -796,8 +927,8 @@ void __ipipe_unlock_irq(unsigned int irq)
 		p = ipipe_percpu_context(ipd, cpu);
 		if (test_and_clear_bit(irq, p->irqheld_map)) {
 			/* We need atomic ops here: */
-			set_bit(irq, p->irqpend_lomap);
-			set_bit(l0b, &p->irqpend_himap);
+			set_bit(irq, p->irqpend_map);
+			set_bit(l0b, &p->irqpend_0map);
 		}
 	}
 }
@@ -808,24 +939,24 @@ static inline int __ipipe_next_irq(struct ipipe_percpu_domain_data *p)
 	unsigned long l0m, l1m;
 	int l0b, l1b;
 
-	l0m = p->irqpend_himap;
+	l0m = p->irqpend_0map;
 	if (unlikely(l0m == 0))
 		return -1;
 
 	l0b = __ipipe_ffnz(l0m);
-	l1m = p->irqpend_lomap[l0b];
+	l1m = p->irqpend_map[l0b];
 	if (unlikely(l1m == 0))
 		return -1;
 
 	l1b = __ipipe_ffnz(l1m);
-	__clear_bit(l1b, &p->irqpend_lomap[l0b]);
-	if (p->irqpend_lomap[l0b] == 0)
-		__clear_bit(l0b, &p->irqpend_himap);
+	__clear_bit(l1b, &p->irqpend_map[l0b]);
+	if (p->irqpend_map[l0b] == 0)
+		__clear_bit(l0b, &p->irqpend_0map);
 
 	return l0b * BITS_PER_LONG + l1b;
 }
 
-#endif /* __IPIPE_2LEVEL_IRQMAP */
+#endif
 
 void __ipipe_do_sync_pipeline(struct ipipe_domain *top)
 {
