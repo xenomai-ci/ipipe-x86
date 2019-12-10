@@ -43,20 +43,25 @@ struct ipipe_vm_notifier;
 /* Total number of IRQ slots */
 #define IPIPE_NR_IRQS		(IPIPE_VIRQ_BASE+IPIPE_NR_VIRQS)
 
-#define IPIPE_IRQ_LOMAPSZ	(IPIPE_NR_IRQS / BITS_PER_LONG)
-#if IPIPE_IRQ_LOMAPSZ > BITS_PER_LONG
+#define IPIPE_IRQ_MAPSZ		(IPIPE_NR_IRQS / BITS_PER_LONG)
+#define IPIPE_IRQ_1MAPSZ	BITS_PER_LONG
+#if IPIPE_IRQ_MAPSZ > BITS_PER_LONG * BITS_PER_LONG
 /*
- * We need a 3-level mapping. This allows us to handle up to 32k IRQ
- * vectors on 32bit machines, 256k on 64bit ones.
+ * We need a 4-level mapping, up to 16M IRQs (64bit long, MAXSMP
+ * defines 512K IRQs).
  */
-#define __IPIPE_3LEVEL_IRQMAP	1
-#define IPIPE_IRQ_MDMAPSZ	(__bpl_up(IPIPE_IRQ_LOMAPSZ) / BITS_PER_LONG)
+#define __IPIPE_IRQMAP_LEVELS	4
+#define IPIPE_IRQ_2MAPSZ	(BITS_PER_LONG * BITS_PER_LONG)
+#elif IPIPE_IRQ_MAPSZ > BITS_PER_LONG
+/*
+ * 3-level mapping. Up to 256K IRQs (64 bit long).
+ */
+#define __IPIPE_IRQMAP_LEVELS	3
 #else
 /*
- * 2-level mapping is enough. This allows us to handle up to 1024 IRQ
- * vectors on 32bit machines, 4096 on 64bit ones.
+ * 2-level mapping is enough. Up to 4K IRQs (64 bit long).
  */
-#define __IPIPE_2LEVEL_IRQMAP	1
+#define __IPIPE_IRQMAP_LEVELS	2
 #endif
 
 /* Per-cpu pipeline status */
@@ -132,12 +137,15 @@ extern struct ipipe_domain *ipipe_head_domain;
 
 struct ipipe_percpu_domain_data {
 	unsigned long status;	/* <= Must be first in struct. */
-	unsigned long irqpend_himap;
-#ifdef __IPIPE_3LEVEL_IRQMAP
-	unsigned long irqpend_mdmap[IPIPE_IRQ_MDMAPSZ];
+	unsigned long irqpend_0map;
+#if __IPIPE_IRQMAP_LEVELS >= 3
+	unsigned long irqpend_1map[IPIPE_IRQ_1MAPSZ];
+#if __IPIPE_IRQMAP_LEVELS >= 4
+	unsigned long irqpend_2map[IPIPE_IRQ_2MAPSZ];
 #endif
-	unsigned long irqpend_lomap[IPIPE_IRQ_LOMAPSZ];
-	unsigned long irqheld_map[IPIPE_IRQ_LOMAPSZ];
+#endif
+	unsigned long irqpend_map[IPIPE_IRQ_MAPSZ];
+	unsigned long irqheld_map[IPIPE_IRQ_MAPSZ];
 	unsigned long irqall[IPIPE_NR_IRQS];
 	struct ipipe_domain *domain;
 	int coflags;
@@ -346,7 +354,7 @@ extern unsigned long __ipipe_root_status;
  */
 static inline int __ipipe_ipending_p(struct ipipe_percpu_domain_data *pd)
 {
-	return pd->irqpend_himap != 0;
+	return pd->irqpend_0map != 0;
 }
 
 static inline unsigned long
