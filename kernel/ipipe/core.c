@@ -1779,7 +1779,7 @@ void __ipipe_do_critical_sync(unsigned int irq, void *cookie)
 
 unsigned long ipipe_critical_enter(void (*syncfn)(void))
 {
-	cpumask_t allbutself __maybe_unused, online __maybe_unused;
+	static cpumask_t allbutself __maybe_unused, online __maybe_unused;
 	int cpu __maybe_unused, n __maybe_unused;
 	unsigned long flags, loops __maybe_unused;
 
