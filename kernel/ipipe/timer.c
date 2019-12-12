@@ -268,7 +268,7 @@ int ipipe_select_timers(const struct cpumask *mask)
 	struct clock_event_device *evtdev;
 	unsigned long flags;
 	unsigned cpu;
-	cpumask_t fixup;
+	cpumask_var_t fixup;
 
 	if (!__ipipe_hrclock_ok()) {
 		printk("I-pipe: high-resolution clock not working\n");
@@ -281,6 +281,12 @@ int ipipe_select_timers(const struct cpumask *mask)
 		hrclock_freq = tmp;
 	} else
 		hrclock_freq = __ipipe_hrclock_freq;
+
+
+	if (!zalloc_cpumask_var(&fixup, GFP_KERNEL)) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
 
 	raw_spin_lock_irqsave(&lock, flags);
 
@@ -309,9 +315,9 @@ found:
 	 * forwarded because they have the same IRQ as an ipipe-enabled
 	 * timer.
 	 */
-	cpumask_andnot(&fixup, cpu_online_mask, mask);
+	cpumask_andnot(fixup, cpu_online_mask, mask);
 
-	for_each_cpu(cpu, &fixup) {
+	for_each_cpu(cpu, fixup) {
 		list_for_each_entry(t, &timers, link) {
 			if (!cpumask_test_cpu(cpu, t->cpumask))
 				continue;
@@ -322,6 +328,7 @@ found:
 
 	raw_spin_unlock_irqrestore(&lock, flags);
 
+	free_cpumask_var(fixup);
 	flags = ipipe_critical_enter(ipipe_timer_request_sync);
 	ipipe_timer_request_sync();
 	ipipe_critical_exit(flags);
@@ -330,6 +337,7 @@ found:
 
 err_remove_all:
 	raw_spin_unlock_irqrestore(&lock, flags);
+	free_cpumask_var(fixup);
 
 	for_each_cpu(cpu, mask) {
 		per_cpu(ipipe_percpu.hrtimer_irq, cpu) = -1;
