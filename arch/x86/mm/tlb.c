@@ -533,17 +533,27 @@ static void flush_tlb_func_common(const struct flush_tlb_info *f,
 	 * - f->new_tlb_gen: the generation that the requester of the flush
 	 *                   wants us to catch up to.
 	 */
-	struct mm_struct *loaded_mm = this_cpu_read(cpu_tlbstate.loaded_mm);
-	u32 loaded_mm_asid = this_cpu_read(cpu_tlbstate.loaded_mm_asid);
-	u64 mm_tlb_gen = atomic64_read(&loaded_mm->context.tlb_gen);
-	u64 local_tlb_gen = this_cpu_read(cpu_tlbstate.ctxs[loaded_mm_asid].tlb_gen);
+	struct mm_struct *loaded_mm;
+	u32 loaded_mm_asid;
+	u64 mm_tlb_gen;
+	u64 local_tlb_gen;
 	unsigned long flags;
 
 	/* This code cannot presently handle being reentered. */
 	VM_WARN_ON(!irqs_disabled());
 
-	if (unlikely(loaded_mm == &init_mm))
+	flags = hard_cond_local_irq_save();
+
+	loaded_mm = this_cpu_read(cpu_tlbstate.loaded_mm);
+	loaded_mm_asid = this_cpu_read(cpu_tlbstate.loaded_mm_asid);
+	mm_tlb_gen = atomic64_read(&loaded_mm->context.tlb_gen);
+	loaded_mm_asid = this_cpu_read(cpu_tlbstate.loaded_mm_asid);
+	local_tlb_gen = this_cpu_read(cpu_tlbstate.ctxs[loaded_mm_asid].tlb_gen);
+
+	if (unlikely(loaded_mm == &init_mm)) {
+		hard_cond_local_irq_restore(flags);
 		return;
+	}
 
 	VM_WARN_ON(this_cpu_read(cpu_tlbstate.ctxs[loaded_mm_asid].ctx_id) !=
 		   loaded_mm->context.ctx_id);
@@ -558,13 +568,13 @@ static void flush_tlb_func_common(const struct flush_tlb_info *f,
 		 * This should be rare, with native_flush_tlb_others skipping
 		 * IPIs to lazy TLB mode CPUs.
 		 */
-		flags = hard_cond_local_irq_save();
 		switch_mm_irqs_off(NULL, &init_mm, NULL);
 		hard_cond_local_irq_restore(flags);
 		return;
 	}
 
 	if (unlikely(local_tlb_gen == mm_tlb_gen)) {
+		hard_cond_local_irq_restore(flags);
 		/*
 		 * There's nothing to do: we're already up to date.  This can
 		 * happen if two concurrent flushes happen -- the first flush to
@@ -577,6 +587,8 @@ static void flush_tlb_func_common(const struct flush_tlb_info *f,
 
 	WARN_ON_ONCE(local_tlb_gen > mm_tlb_gen);
 	WARN_ON_ONCE(f->new_tlb_gen > mm_tlb_gen);
+
+	hard_cond_local_irq_restore(flags);
 
 	/*
 	 * If we get to this point, we know that our TLB is out of date.
@@ -637,8 +649,13 @@ static void flush_tlb_func_common(const struct flush_tlb_info *f,
 		trace_tlb_flush(reason, TLB_FLUSH_ALL);
 	}
 
-	/* Both paths above update our state to mm_tlb_gen. */
-	this_cpu_write(cpu_tlbstate.ctxs[loaded_mm_asid].tlb_gen, mm_tlb_gen);
+	flags = hard_cond_local_irq_save();
+	if (loaded_mm == this_cpu_read(cpu_tlbstate.loaded_mm) &&
+	    loaded_mm_asid == this_cpu_read(cpu_tlbstate.loaded_mm_asid)) {
+		/* Both paths above update our state to mm_tlb_gen. */
+		this_cpu_write(cpu_tlbstate.ctxs[loaded_mm_asid].tlb_gen, mm_tlb_gen);
+	}
+	hard_cond_local_irq_restore(flags);
 }
 
 static void flush_tlb_func_local(const void *info, enum tlb_flush_reason reason)
