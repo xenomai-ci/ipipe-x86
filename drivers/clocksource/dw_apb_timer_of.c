@@ -25,19 +25,15 @@
 #include <linux/sched_clock.h>
 
 static void __init timer_get_base_and_rate(struct device_node *np,
-					   void __iomem **base, unsigned long *phys,
-					   u32 *rate)
+				    void __iomem **base, u32 *rate)
 {
 	struct clk *timer_clk;
-	struct resource res;
 	struct clk *pclk;
 
 	*base = of_iomap(np, 0);
 
-	if (!*base || of_address_to_resource(np, 0, &res))
+	if (!*base)
 		panic("Unable to map regs for %s", np->name);
-
-	*phys = res.start;
 
 	/*
 	 * Not all implementations use a periphal clock, so don't panic
@@ -68,14 +64,13 @@ static void __init add_clockevent(struct device_node *event_timer)
 {
 	void __iomem *iobase;
 	struct dw_apb_clock_event_device *ced;
-	unsigned long phys;
 	u32 irq, rate;
 
 	irq = irq_of_parse_and_map(event_timer, 0);
 	if (irq == 0)
 		panic("No IRQ for clock event timer");
 
-	timer_get_base_and_rate(event_timer, &iobase, &phys, &rate);
+	timer_get_base_and_rate(event_timer, &iobase, &rate);
 
 	ced = dw_apb_clockevent_init(0, event_timer->name, 300, iobase, irq,
 				     rate);
@@ -92,12 +87,11 @@ static void __init add_clocksource(struct device_node *source_timer)
 {
 	void __iomem *iobase;
 	struct dw_apb_clocksource *cs;
-	unsigned long phys;
 	u32 rate;
 
-	timer_get_base_and_rate(source_timer, &iobase, &phys, &rate);
+	timer_get_base_and_rate(source_timer, &iobase, &rate);
 
-	cs = dw_apb_clocksource_init(300, source_timer->name, iobase, phys, rate);
+	cs = dw_apb_clocksource_init(300, source_timer->name, iobase, rate);
 	if (!cs)
 		panic("Unable to initialise clocksource device");
 
@@ -126,12 +120,11 @@ static const struct of_device_id sptimer_ids[] __initconst = {
 static void __init init_sched_clock(void)
 {
 	struct device_node *sched_timer;
-	unsigned long phys;
 
 	sched_timer = of_find_matching_node(NULL, sptimer_ids);
 	if (sched_timer) {
 		timer_get_base_and_rate(sched_timer, &sched_io_base,
-					&phys, &sched_rate);
+					&sched_rate);
 		of_node_put(sched_timer);
 	}
 
