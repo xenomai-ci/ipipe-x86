@@ -680,7 +680,7 @@ void ipipe_trace_panic_dump(void)
 
 	ipipe_context_check_off();
 
-	printk(KERN_CONT "I-pipe tracer log (%d points):\n", cnt);
+	printk(KERN_EMERG "I-pipe tracer log (%d points):\n", cnt);
 
 	start = pos = WRAP_POINT_NO(panic_path->trace_pos-1);
 
@@ -690,7 +690,7 @@ void ipipe_trace_panic_dump(void)
 		char info[16];
 		int i;
 
-		printk(KERN_CONT " %c",
+		printk(KERN_EMERG " %c",
 		       (point->flags & IPIPE_TFLG_HWIRQ_OFF) ? '|' : ' ');
 
 		for (i = IPIPE_TFLG_DOMSTATE_BITS; i >= 0; i--)
@@ -720,7 +720,8 @@ void ipipe_trace_panic_dump(void)
 
 				case IPIPE_TRACE_EVENT:
 					__ipipe_get_event_date(info,
-							       panic_path, point);
+							       panic_path,
+							       point);
 					printk(KERN_CONT "%s", info);
 					break;
 
