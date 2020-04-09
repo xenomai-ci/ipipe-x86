@@ -24,6 +24,7 @@
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/kallsyms.h>
+#include <linux/kdebug.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
 #include <linux/ctype.h>
@@ -744,6 +745,36 @@ void ipipe_trace_panic_dump(void)
 	panic_path = NULL;
 }
 EXPORT_SYMBOL_GPL(ipipe_trace_panic_dump);
+
+static int ipipe_trace_panic_handler(struct notifier_block *this,
+				     unsigned long event, void *unused)
+{
+	ipipe_trace_panic_dump();
+	return NOTIFY_OK;
+}
+
+static struct notifier_block ipipe_trace_panic_notifier = {
+	.notifier_call  = ipipe_trace_panic_handler,
+	.priority       = 150,
+};
+
+static int ipipe_trace_die_handler(struct notifier_block *self,
+				   unsigned long val, void *data)
+{
+	switch (val) {
+	case DIE_OOPS:
+		ipipe_trace_panic_dump();
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block ipipe_trace_die_notifier = {
+	.notifier_call = ipipe_trace_die_handler,
+	.priority = 200,
+};
 
 #endif /* CONFIG_IPIPE_TRACE_PANIC */
 
@@ -1484,4 +1515,10 @@ void __init __ipipe_init_tracer(void)
 	__ipipe_create_trace_proc_val(trace_dir, "enable",
 				      &ipipe_trace_enable);
 #endif /* !CONFIG_IPIPE_TRACE_MCOUNT */
+
+#ifdef CONFIG_IPIPE_TRACE_PANIC
+	atomic_notifier_chain_register(&panic_notifier_list,
+				       &ipipe_trace_panic_notifier);
+	register_die_notifier(&ipipe_trace_die_notifier);
+#endif /* CONFIG_IPIPE_TRACE_PANIC */
 }
