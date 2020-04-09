@@ -421,6 +421,8 @@ dotraplinkage int __ipipe_trap_prologue(struct pt_regs *regs, int trapnr, unsign
 		ipd = __ipipe_current_domain;
 		__ipipe_set_current_domain(ipipe_root_domain);
 
+		ipipe_trace_panic_freeze();
+
 		/*
 		 * Prevent warnings of this debug checker to focus on the
 		 * actual bug.
@@ -432,8 +434,6 @@ dotraplinkage int __ipipe_trap_prologue(struct pt_regs *regs, int trapnr, unsign
 		if (entry_irqs_off)
 			local_irq_disable();
 
-		ipipe_trace_panic_freeze();
-
 		/* Always warn about user land and unfixable faults. */
 		if (user_mode(regs) ||
 		    !search_exception_tables(instruction_pointer(regs))) {
@@ -441,14 +441,12 @@ dotraplinkage int __ipipe_trap_prologue(struct pt_regs *regs, int trapnr, unsign
 			       " %s at 0x%lx - switching to ROOT\n",
 			       ipd->name, instruction_pointer(regs));
 			dump_stack();
-			ipipe_trace_panic_dump();
 		} else if (IS_ENABLED(CONFIG_IPIPE_DEBUG)) {
 			/* Also report fixable ones when debugging is enabled. */
 			printk(KERN_WARNING "WARNING: Fixable exception over "
 			       "domain %s at 0x%lx - switching to ROOT\n",
 			       ipd->name, instruction_pointer(regs));
 			dump_stack();
-			ipipe_trace_panic_dump();
 		}
 	}
 
