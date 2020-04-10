@@ -421,6 +421,13 @@ dotraplinkage int __ipipe_trap_prologue(struct pt_regs *regs, int trapnr, unsign
 		ipd = __ipipe_current_domain;
 		__ipipe_set_current_domain(ipipe_root_domain);
 
+		/*
+		 * Prevent warnings of this debug checker to focus on the
+		 * actual bug.
+		 */
+		if (test_bit(IPIPE_STALL_FLAG, &__ipipe_head_status))
+			ipipe_context_check_off();
+
 		/* Sync Linux interrupt state with hardware state on entry. */
 		if (entry_irqs_off)
 			local_irq_disable();
