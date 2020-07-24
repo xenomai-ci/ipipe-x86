@@ -315,6 +315,7 @@ static int __fpu__restore_sig(void __user *buf, void __user *buf_fx, int size)
 		 * header. Validate and sanitize the copied state.
 		 */
 		struct user_i387_ia32_struct env;
+		unsigned long flags;
 		int err = 0;
 
 		/*
@@ -345,8 +346,10 @@ static int __fpu__restore_sig(void __user *buf, void __user *buf_fx, int size)
 		}
 
 		local_bh_disable();
+		flags = hard_cond_local_irq_save();
 		fpu->initialized = 1;
 		fpu__restore(fpu);
+		hard_cond_local_irq_restore(flags);
 		local_bh_enable();
 
 		return err;
