@@ -214,7 +214,7 @@ static inline void irq_set_handler_locked(struct irq_data *data,
 {
 	struct irq_desc *desc = irq_data_to_desc(data);
 
-	desc->handle_irq = handler;
+	desc->handle_irq = __fixup_irq_handler(desc, handler, 0);
 }
 
 /**
@@ -235,7 +235,7 @@ irq_set_chip_handler_name_locked(struct irq_data *data, struct irq_chip *chip,
 {
 	struct irq_desc *desc = irq_data_to_desc(data);
 
-	desc->handle_irq = handler;
+	desc->handle_irq = __fixup_irq_handler(desc, handler, 0);
 	desc->name = name;
 	data->chip = chip;
 }
