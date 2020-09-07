@@ -89,3 +89,32 @@ bool handle_irq(struct irq_desc *desc, struct pt_regs *regs)
 	generic_handle_irq_desc(desc);
 	return true;
 }
+
+#ifdef CONFIG_IPIPE
+
+void __ipipe_do_IRQ(unsigned int irq, void *cookie)
+{
+	struct pt_regs *regs = raw_cpu_ptr(&ipipe_percpu.tick_regs);
+	struct pt_regs *old_regs = set_irq_regs(regs);
+	unsigned int (*handler)(struct pt_regs *regs);
+	struct irq_desc *desc;
+
+	handler = (typeof(handler))cookie;
+
+	entering_irq();
+
+	stack_overflow_check(regs);
+
+	if (handler == do_IRQ) {
+		desc = irq_to_desc(irq);
+		generic_handle_irq_desc(desc);
+	} else {
+		handler(regs);
+	}
+
+	exiting_irq();
+
+	set_irq_regs(old_regs);
+}
+
+#endif
