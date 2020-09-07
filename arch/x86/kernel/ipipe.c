@@ -73,6 +73,8 @@ void smp_reboot_interrupt(void);
 void smp_thermal_interrupt(struct pt_regs *regs);
 void smp_threshold_interrupt(struct pt_regs *regs);
 
+void __ipipe_do_IRQ(unsigned int irq, void *cookie);
+
 DEFINE_PER_CPU(unsigned long, __ipipe_cr2);
 EXPORT_PER_CPU_SYMBOL_GPL(__ipipe_cr2);
 
@@ -87,17 +89,6 @@ int ipipe_get_sysinfo(struct ipipe_sysinfo *info)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ipipe_get_sysinfo);
-
-static void __ipipe_do_IRQ(unsigned int irq, void *cookie)
-{
-	void (*handler)(struct pt_regs *regs);
-	struct pt_regs *regs;
-
-	regs = raw_cpu_ptr(&ipipe_percpu.tick_regs);
-	regs->orig_ax = ~__ipipe_get_irq_vector(irq);
-	handler = (typeof(handler))cookie;
-	handler(regs);
-}
 
 #ifdef CONFIG_X86_LOCAL_APIC
 
