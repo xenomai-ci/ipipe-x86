@@ -191,8 +191,8 @@ static inline int irq_desc_has_action(struct irq_desc *desc)
 }
 
 irq_flow_handler_t
-__fixup_irq_handler(struct irq_desc *desc, irq_flow_handler_t handle,
-		    int is_chained);
+__ipipe_setup_irq_desc(struct irq_desc *desc, irq_flow_handler_t handle,
+		int is_chained);
 
 static inline int irq_has_action(unsigned int irq)
 {
@@ -214,7 +214,7 @@ static inline void irq_set_handler_locked(struct irq_data *data,
 {
 	struct irq_desc *desc = irq_data_to_desc(data);
 
-	desc->handle_irq = __fixup_irq_handler(desc, handler, 0);
+	desc->handle_irq = __ipipe_setup_irq_desc(desc, handler, 0);
 }
 
 /**
@@ -235,7 +235,7 @@ irq_set_chip_handler_name_locked(struct irq_data *data, struct irq_chip *chip,
 {
 	struct irq_desc *desc = irq_data_to_desc(data);
 
-	desc->handle_irq = __fixup_irq_handler(desc, handler, 0);
+	desc->handle_irq = __ipipe_setup_irq_desc(desc, handler, 0);
 	desc->name = name;
 	data->chip = chip;
 }
