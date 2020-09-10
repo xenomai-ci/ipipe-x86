@@ -648,7 +648,6 @@ asmlinkage __visible void __init start_kernel(void)
 	 * initialized before enabling the pipeline.
 	 */
 	__ipipe_init();
-	printk_safe_init();
 	perf_event_init();
 	profile_init();
 	call_function_init();
