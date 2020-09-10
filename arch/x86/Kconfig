@@ -558,6 +558,7 @@ config X86_UV
 	depends on EFI
 	depends on X86_X2APIC
 	depends on PCI
+	depends on !IPIPE
 	---help---
 	  This option is needed in order to support SGI Ultraviolet systems.
 	  If you don't have one of these, you should say N here.

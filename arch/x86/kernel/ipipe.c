@@ -139,13 +139,6 @@ void __init __ipipe_enable_pipeline(void)
 			  __ipipe_ack_apic);
 #endif
 
-#ifdef CONFIG_X86_UV
-	ipipe_request_irq(ipipe_root_domain,
-			  ipipe_apic_vector_irq(UV_BAU_MESSAGE),
-			  __ipipe_do_IRQ, uv_bau_message_interrupt,
-			  __ipipe_ack_apic);
-#endif /* CONFIG_X86_UV */
-
 	ipipe_request_irq(ipipe_root_domain,
 			  ipipe_apic_vector_irq(SPURIOUS_APIC_VECTOR),
 			  __ipipe_do_IRQ, smp_spurious_interrupt,
