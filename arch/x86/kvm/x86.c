@@ -3585,8 +3585,6 @@ static void kvm_steal_time_set_preempted(struct kvm_vcpu *vcpu)
 
 void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
 {
-	unsigned int cpu = smp_processor_id();
-	struct kvm_shared_msrs *smsr = per_cpu_ptr(shared_msrs, cpu);
 	unsigned long flags;
 	int idx;
 
@@ -3633,7 +3631,7 @@ skip_steal_time_update:
 
 #ifdef CONFIG_IPIPE
 	vcpu->ipipe_put_vcpu = false;
-	if (!smsr->dirty)
+	if (!per_cpu_ptr(shared_msrs, smp_processor_id())->dirty)
 		__ipipe_exit_vm();
 #endif
 

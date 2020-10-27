@@ -310,7 +310,7 @@ __visible inline void syscall_return_slowpath(struct pt_regs *regs)
 __visible void do_syscall_64(unsigned long nr, struct pt_regs *regs)
 {
 	struct thread_info *ti;
-	int ret;
+	int __maybe_unused ret;
 
 	enter_from_user_mode();
 	enable_local_irqs();
@@ -341,7 +341,10 @@ __visible void do_syscall_64(unsigned long nr, struct pt_regs *regs)
 		regs->ax = x32_sys_call_table[nr](regs);
 #endif
 	}
+
+#ifdef CONFIG_IPIPE
 done:
+#endif
 	syscall_return_slowpath(regs);
 }
 #endif
