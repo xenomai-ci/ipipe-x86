@@ -1066,7 +1066,9 @@ static int exec_mmap(struct mm_struct *mm)
 		local_irq_enable();
 	activate_mm(active_mm, mm);
 	ipipe_mm_switch_unprotect(flags);
-	if (IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM))
+	if (IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM) ||
+	    (IS_ENABLED(CONFIG_IPIPE) &&
+	     !IS_ENABLED(CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH)))
 		local_irq_enable();
 	tsk->mm->vmacache_seqnum = 0;
 	vmacache_flush(tsk);
