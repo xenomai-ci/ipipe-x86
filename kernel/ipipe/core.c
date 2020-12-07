@@ -1573,6 +1573,7 @@ log:
 sync:
 	__ipipe_sync_pipeline(ipipe_head_domain);
 }
+EXPORT_SYMBOL_GPL(__ipipe_dispatch_irq);
 
 void ipipe_raise_irq(unsigned int irq)
 {
