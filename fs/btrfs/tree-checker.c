@@ -571,6 +571,7 @@ int btrfs_check_chunk_valid(struct extent_buffer *leaf,
 {
 	struct btrfs_fs_info *fs_info = leaf->fs_info;
 	u64 length;
+	u64 chunk_end;
 	u64 stripe_len;
 	u16 num_stripes;
 	u16 sub_stripes;
@@ -623,6 +624,12 @@ int btrfs_check_chunk_valid(struct extent_buffer *leaf,
 	if (!length || !IS_ALIGNED(length, fs_info->sectorsize)) {
 		chunk_err(leaf, chunk, logical,
 			  "invalid chunk length, have %llu", length);
+		return -EUCLEAN;
+	}
+	if (unlikely(check_add_overflow(logical, length, &chunk_end))) {
+		chunk_err(leaf, chunk, logical,
+"invalid chunk logical start and length, have logical start %llu length %llu",
+			  logical, length);
 		return -EUCLEAN;
 	}
 	if (!is_power_of_2(stripe_len) || stripe_len != BTRFS_STRIPE_LEN) {
@@ -913,6 +920,7 @@ static int check_root_item(struct extent_buffer *leaf, struct btrfs_key *key,
 			    "invalid root item size, have %u expect %zu or %u",
 			    btrfs_item_size_nr(leaf, slot), sizeof(ri),
 			    btrfs_legacy_root_item_size());
+		return -EUCLEAN;
 	}
 
 	/*
@@ -1268,6 +1276,7 @@ static int check_extent_data_ref(struct extent_buffer *leaf,
 	"invalid item size, have %u expect aligned to %zu for key type %u",
 			    btrfs_item_size_nr(leaf, slot),
 			    sizeof(*dref), key->type);
+		return -EUCLEAN;
 	}
 	if (!IS_ALIGNED(key->objectid, leaf->fs_info->sectorsize)) {
 		generic_err(leaf, slot,
@@ -1296,6 +1305,7 @@ static int check_extent_data_ref(struct extent_buffer *leaf,
 			extent_err(leaf, slot,
 	"invalid extent data backref offset, have %llu expect aligned to %u",
 				   offset, leaf->fs_info->sectorsize);
+			return -EUCLEAN;
 		}
 	}
 	return 0;
