@@ -276,7 +276,7 @@ static void syscall_slow_exit_work(struct pt_regs *regs, u32 cached_flags)
  * Called with IRQs on and fully valid regs.  Returns with IRQs off in a
  * state such that we can immediately switch to user mode.
  */
-__visible inline void syscall_return_slowpath(struct pt_regs *regs)
+static void __syscall_return_slowpath(struct pt_regs *regs, bool do_work)
 {
 	struct thread_info *ti = current_thread_info();
 	u32 cached_flags = READ_ONCE(ti->flags);
@@ -293,14 +293,16 @@ __visible inline void syscall_return_slowpath(struct pt_regs *regs)
 	 * First do one-time work.  If these work items are enabled, we
 	 * want to run them exactly once per syscall exit with IRQs on.
 	 */
-	if (unlikely((!IS_ENABLED(CONFIG_IPIPE) ||
-		      syscall_get_nr(current, regs) <
-				ipipe_root_nr_syscalls(ti)) &&
-		     (cached_flags & SYSCALL_EXIT_WORK_FLAGS)))
+	if (unlikely(do_work && (cached_flags & SYSCALL_EXIT_WORK_FLAGS)))
 		syscall_slow_exit_work(regs, cached_flags);
 
 	disable_local_irqs();
 	prepare_exit_to_usermode(regs);
+}
+
+__visible inline void syscall_return_slowpath(struct pt_regs *regs)
+{
+	__syscall_return_slowpath(regs, true);
 }
 
 #ifdef CONFIG_X86_64
@@ -318,8 +320,10 @@ __visible void do_syscall_64(unsigned long nr, struct pt_regs *regs)
 		disable_local_irqs();
 		return;
 	}
-	if (ret < 0)
-		goto done;
+	if (ret < 0) {
+		__syscall_return_slowpath(regs, false);
+		return;
+	}
 
 	if (READ_ONCE(ti->flags) & _TIF_WORK_SYSCALL_ENTRY)
 		nr = syscall_trace_enter(regs);
@@ -334,7 +338,7 @@ __visible void do_syscall_64(unsigned long nr, struct pt_regs *regs)
 		nr = array_index_nospec(nr, NR_syscalls);
 		regs->ax = sys_call_table[nr](regs);
 	}
-done:
+
 	syscall_return_slowpath(regs);
 }
 #endif
@@ -394,8 +398,10 @@ static __always_inline void do_syscall_32_irqs_on(struct pt_regs *regs)
 		disable_local_irqs();
 		return;
 	}
-	if (ret < 0)
-		goto done;
+	if (ret < 0) {
+		__syscall_return_slowpath(regs, false);
+		return;
+	}
 
 	if (READ_ONCE(ti->flags) & _TIF_WORK_SYSCALL_ENTRY) {
 		/*
@@ -424,7 +430,7 @@ static __always_inline void do_syscall_32_irqs_on(struct pt_regs *regs)
 			(unsigned int)regs->di, (unsigned int)regs->bp);
 #endif /* CONFIG_IA32_EMULATION */
 	}
-done:
+
 	syscall_return_slowpath(regs);
 }
 
