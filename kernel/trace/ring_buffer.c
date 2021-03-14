@@ -2677,9 +2677,9 @@ rb_wakeups(struct ring_buffer *buffer, struct ring_buffer_per_cpu *cpu_buffer)
 static __always_inline int
 trace_recursive_lock(struct ring_buffer_per_cpu *cpu_buffer)
 {
-	unsigned int val = cpu_buffer->current_context;
 	unsigned long pc = preempt_count();
 	unsigned long flags;
+	unsigned int val;
 	int bit;
 
 	if (!(pc & (NMI_MASK | HARDIRQ_MASK | SOFTIRQ_OFFSET)))
@@ -2689,6 +2689,8 @@ trace_recursive_lock(struct ring_buffer_per_cpu *cpu_buffer)
 			pc & HARDIRQ_MASK ? RB_CTX_IRQ : RB_CTX_SOFTIRQ;
 
 	flags = hard_local_irq_save();
+
+	val = cpu_buffer->current_context;
 
 	if (unlikely(val & (1 << (bit + cpu_buffer->nest)))) {
 		/*
