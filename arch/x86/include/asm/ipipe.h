@@ -24,7 +24,7 @@
 
 #ifdef CONFIG_IPIPE
 
-#define IPIPE_CORE_RELEASE	17
+#define IPIPE_CORE_RELEASE	18
 
 struct ipipe_domain;
 
