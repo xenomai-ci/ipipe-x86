@@ -2027,9 +2027,16 @@ void __ipipe_post_work_root(struct ipipe_work_header *work)
 	cpu = ipipe_processor_id();
 	tail = per_cpu(work_tail, cpu);
 
-	if (WARN_ON_ONCE((unsigned char *)tail + work->size >=
-			 per_cpu(work_buf, cpu) + WORKBUF_SIZE))
+	if (unlikely((unsigned char *)tail + work->size >=
+		     per_cpu(work_buf, cpu) + WORKBUF_SIZE)) {
+		static volatile unsigned long once;
+		if (!test_and_set_bit(0, &once)) {
+			ipipe_prepare_panic();
+			pr_err("I-pipe root work queue overflow! System may be unstable now.\n");
+			dump_stack();
+		}
 		goto out;
+	}
 
 	/* Work handling is deferred, so data has to be copied. */
 	memcpy(tail, work, work->size);
