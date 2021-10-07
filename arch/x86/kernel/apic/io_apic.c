@@ -2076,7 +2076,8 @@ static struct irq_chip ioapic_chip __read_mostly = {
 	.irq_hold		= hold_ioapic_irq,
 	.irq_release		= release_ioapic_irq,
 #endif
-	.flags			= IRQCHIP_SKIP_SET_WAKE,
+	.flags			= IRQCHIP_SKIP_SET_WAKE |
+				  IRQCHIP_AFFINITY_PRE_STARTUP,
 };
 
 static struct irq_chip ioapic_ir_chip __read_mostly = {
@@ -2096,7 +2097,8 @@ static struct irq_chip ioapic_ir_chip __read_mostly = {
 	.irq_hold		= hold_ioapic_ir_irq,
 	.irq_release		= release_ioapic_irq,
 #endif
-	.flags			= IRQCHIP_SKIP_SET_WAKE,
+	.flags			= IRQCHIP_SKIP_SET_WAKE |
+				  IRQCHIP_AFFINITY_PRE_STARTUP,
 };
 
 static inline void init_IO_APIC_traps(void)
