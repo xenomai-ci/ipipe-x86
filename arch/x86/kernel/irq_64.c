@@ -76,20 +76,20 @@ int irq_init_percpu_irqstack(unsigned int cpu)
 void __ipipe_do_IRQ(unsigned int irq, void *cookie)
 {
 	struct pt_regs *regs = raw_cpu_ptr(&ipipe_percpu.tick_regs);
+	struct irq_desc *desc = irq_to_desc(irq);
 	struct pt_regs *old_regs = set_irq_regs(regs);
 	unsigned int (*handler)(struct pt_regs *regs);
-	struct irq_desc *desc;
 
 	handler = (typeof(handler))cookie;
 
+	__ipipe_move_root_irq(desc);
+
 	entering_irq();
 
-	if (handler == do_IRQ) {
-		desc = irq_to_desc(irq);
+	if (handler == do_IRQ)
 		generic_handle_irq_desc(desc);
-	} else {
+	else
 		handler(regs);
-	}
 
 	exiting_irq();
 
