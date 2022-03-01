@@ -236,14 +236,12 @@ __visible unsigned int __irq_entry do_IRQ(struct pt_regs *regs)
 	/* high bit used in ret_from_ code  */
 	unsigned vector = ~regs->orig_ax;
 
-	desc = __this_cpu_read(vector_irq[vector]);
-	__ipipe_move_root_irq(desc);
 	entering_irq();
 
 	/* entering_irq() tells RCU that we're not quiescent.  Check it. */
 	RCU_LOCKDEP_WARN(!rcu_is_watching(), "IRQ failed to wake up RCU");
 
-
+	desc = __this_cpu_read(vector_irq[vector]);
 	if (!handle_irq(desc, regs)) {
 		ack_APIC_irq();
 
