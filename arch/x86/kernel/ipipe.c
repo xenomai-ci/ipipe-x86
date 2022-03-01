@@ -471,7 +471,14 @@ static inline int __ipipe_irq_from_vector(int vector, int *irq)
 #ifdef CONFIG_X86_LOCAL_APIC
 	__ack_APIC_irq();
 #endif
-	pr_err("unexpected IRQ trap at vector %#x\n", vector);
+
+	if (desc == VECTOR_UNUSED) {
+		pr_emerg_ratelimited("%s: %d.%d Unexpected IRQ trap\n",
+				     __func__, smp_processor_id(), vector);
+	} else {
+		__this_cpu_write(vector_irq[vector], VECTOR_UNUSED);
+	}
+
 	return -1;
 }
 
