@@ -1317,6 +1317,7 @@ static void tsc_refine_calibration_work(struct work_struct *work)
 	u64 tsc_stop, ref_stop, delta;
 	unsigned long freq;
 	int cpu;
+	unsigned int ipipe_freq;
 
 	/* Don't bother refining TSC on unstable systems */
 	if (tsc_unstable)
@@ -1367,6 +1368,9 @@ restart:
 
 	/* Inform the TSC deadline clockevent devices about the recalibration */
 	lapic_update_tsc_freq();
+
+	ipipe_freq = tsc_khz * 1000;
+	__ipipe_report_clockfreq_update(ipipe_freq);
 
 	/* Update the sched_clock() rate to match the clocksource one */
 	for_each_possible_cpu(cpu)
