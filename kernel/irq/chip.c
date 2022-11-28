@@ -1048,8 +1048,7 @@ void __ipipe_ack_level_irq(struct irq_desc *desc)
 
 void __ipipe_end_level_irq(struct irq_desc *desc)
 {
-	desc->irq_data.chip->irq_unmask(&desc->irq_data);
-	irq_state_clr_masked(desc);
+	unmask_irq(desc);
 }
 
 void __ipipe_ack_fasteoi_irq(struct irq_desc *desc)
