@@ -630,6 +630,8 @@ static inline void __ipipe_report_exit(struct task_struct *p) { }
 
 static inline void __ipipe_report_cleanup(struct mm_struct *mm) { }
 
+static inline void __ipipe_report_clockfreq_update(unsigned int freq) { }
+
 static inline void __ipipe_report_ptrace_resume(struct task_struct *p,
 						long request) { }
 
